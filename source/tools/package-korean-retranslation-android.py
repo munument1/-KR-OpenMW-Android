@@ -7,7 +7,10 @@ No font binary is embedded in this script or in the Android APK source tree.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
+import json
+import lzma
 import shutil
 import struct
 import tempfile
@@ -18,10 +21,14 @@ from pathlib import Path, PurePosixPath
 FONT_RELEASE_TAG = "v1.0.7-rc6-classic-cp949-pre1"
 FONT_ASSET_NAME = "Morrowind_CP949_Classic_Fonts.zip"
 FONT_ASSET_SHA256 = "3a7d2442d43d7ed9e0b42d6d8d75068340b00893e06bb2fa696d4ac440bbeee7"
-FONT_ASSET_URL = (
-    "https://github.com/munument1/Morrowind-CP949/releases/download/"
-    f"{FONT_RELEASE_TAG}/{FONT_ASSET_NAME}"
+FONT_RELEASES_API = "https://api.github.com/repos/munument1/Morrowind-CP949/releases?per_page=100"
+FONT_HISTORY_BRANCH = "font-release-upload-temp-20260808"
+FONT_HISTORY_PART_URL = (
+    "https://raw.githubusercontent.com/munument1/Morrowind-CP949/"
+    + FONT_HISTORY_BRANCH
+    + "/.release-upload/parts/part_{index:02d}.b64"
 )
+FONT_HISTORY_PART_COUNT = 12  # real payload is part_00..part_11; part_12 is a placeholder
 
 MOD_PREFIX = "mods/Morrowind_Korean_ReTranslation/"
 FONT_DEST_PREFIX = MOD_PREFIX + "Fonts/"
@@ -60,11 +67,95 @@ def normalized_zip_name(name: str) -> str:
     return name.replace("\\", "/").lstrip("/")
 
 
+def _download_bytes(url: str, timeout: int = 120) -> bytes:
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "KR-OpenMW-Android-font-packager/2",
+            "Accept": "application/vnd.github+json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return response.read()
+
+
+def _is_verified_font_pack(data: bytes) -> bool:
+    return sha256_bytes(data).lower() == FONT_ASSET_SHA256
+
+
 def download_font_pack(dest: Path) -> None:
-    print(f"Downloading verified font pack: {FONT_ASSET_URL}")
-    req = urllib.request.Request(FONT_ASSET_URL, headers={"User-Agent": "KR-OpenMW-Android-font-packager/1"})
-    with urllib.request.urlopen(req, timeout=120) as response, dest.open("wb") as out:
-        shutil.copyfileobj(response, out)
+    """Resolve the already-verified CP949 font pack without trusting a stale release URL.
+
+    Prefer any currently published GitHub release asset whose bytes match the recorded
+    SHA-256. If that release asset is absent, reconstruct the same historical payload
+    from the repository's text-staged upload source (part_00..part_11). part_12 is an
+    explicit placeholder and must never be included.
+    """
+    print("Locating verified CP949 font pack by SHA-256...")
+
+    try:
+        releases = json.loads(_download_bytes(FONT_RELEASES_API, timeout=60).decode("utf-8"))
+    except Exception as exc:
+        print(f"Release discovery unavailable ({exc}); trying historical upload source.")
+        releases = []
+
+    candidates: list[tuple[str, str]] = []
+    if isinstance(releases, list):
+        for release in releases:
+            tag = str(release.get("tag_name", "?"))
+            for asset in release.get("assets", []) or []:
+                name = str(asset.get("name", ""))
+                url = str(asset.get("browser_download_url", ""))
+                if not url:
+                    continue
+                lower = name.casefold()
+                if name == FONT_ASSET_NAME or ("font" in lower and lower.endswith(".zip")):
+                    candidates.append((f"release {tag} / {name}", url))
+
+    for label, url in candidates:
+        try:
+            print(f"Checking {label}...")
+            data = _download_bytes(url)
+        except Exception as exc:
+            print(f"  skipped: {exc}")
+            continue
+        if _is_verified_font_pack(data):
+            dest.write_bytes(data)
+            print(f"PASS verified font pack from {label}")
+            return
+        print(f"  SHA mismatch: {sha256_bytes(data)}")
+
+    print(
+        "No published release asset currently matches the recorded SHA; "
+        "reconstructing the historical upload source (part_00..part_11)."
+    )
+    encoded_parts: list[str] = []
+    for index in range(FONT_HISTORY_PART_COUNT):
+        url = FONT_HISTORY_PART_URL.format(index=index)
+        raw = _download_bytes(url)
+        try:
+            text = raw.decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise RuntimeError(f"historical font source part_{index:02d} is not ASCII") from exc
+        encoded_parts.append("".join(text.split()))
+
+    try:
+        compressed = base64.b64decode("".join(encoded_parts), validate=True)
+    except Exception as exc:
+        raise RuntimeError("historical font source base64 reconstruction failed") from exc
+    try:
+        data = lzma.decompress(compressed)
+    except lzma.LZMAError as exc:
+        raise RuntimeError("historical font source XZ decompression failed") from exc
+
+    if not _is_verified_font_pack(data):
+        raise RuntimeError(
+            "reconstructed historical font pack SHA-256 mismatch\n"
+            f" expected: {FONT_ASSET_SHA256}\n"
+            f" actual:   {sha256_bytes(data)}"
+        )
+    dest.write_bytes(data)
+    print(f"PASS reconstructed verified historical font pack ({FONT_ASSET_SHA256})")
 
 
 def verify_font_pack_archive(path: Path) -> None:
@@ -218,7 +309,6 @@ def build_mod_zip(base_zip: Path, font_pack: Path, output: Path) -> None:
         if tmp_output.exists():
             tmp_output.unlink()
         with zipfile.ZipFile(tmp_output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as dst:
-            # Android mod-only package: copy the ReTranslation mod, not the Windows OpenMW runtime/cfg.
             for info in src.infolist():
                 name = normalized_zip_name(info.filename)
                 if not name.startswith(MOD_PREFIX):
@@ -280,7 +370,7 @@ def main() -> int:
     ap.add_argument(
         "--font-pack",
         type=Path,
-        help="Optional local Morrowind_CP949_Classic_Fonts.zip; if omitted, download the verified release asset",
+        help="Optional local Morrowind_CP949_Classic_Fonts.zip; if omitted, locate the verified SHA or reconstruct historical source",
     )
     args = ap.parse_args()
 
