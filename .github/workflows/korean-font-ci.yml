@@ -85,3 +85,104 @@ jobs:
           for row in report:
               print(row)
           PY
+
+  build-apk:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake gettext-base pkg-config unzip bzip2 xz-utils \
+            wget curl git ninja-build autoconf automake libtool nasm yasm
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            'platforms;android-35' \
+            'build-tools;35.0.0' \
+            'platform-tools' \
+            'ndk;26.1.10909125'
+
+      - name: Add Korean FontLoader to clean OpenMW patch chain
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('source/buildscripts/CMakeLists.txt')
+          text = path.read_text(encoding='utf-8')
+          korean = '        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-korean-cp949-bitmap-font.py <SOURCE_DIR>'
+          if korean not in text:
+              anchor = '        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-gl4es-core-inline.py <SOURCE_DIR>'
+              if text.count(anchor) != 1:
+                  raise SystemExit(f'expected one GL4ES patch anchor, found {text.count(anchor)}')
+              text = text.replace(anchor, anchor + ' &&\n' + korean, 1)
+              path.write_text(text, encoding='utf-8', newline='\n')
+          print('PASS Korean patch chain configured')
+          PY
+
+      - name: Build final ARM64 native runtime
+        working-directory: source/buildscripts
+        run: |
+          set -o pipefail
+          chmod +x build.sh
+          ./build.sh --arch arm64 --lto --jobs 2 --no-resources 2>&1 | tee korean-native-build.log
+
+      - name: Verify Korean native payload and refresh final SHA gate
+        run: |
+          set -euo pipefail
+          SOURCE='source/buildscripts/build/arm64/openmw-prefix/src/openmw'
+          JNI='source/app/src/main/jniLibs/arm64-v8a/libopenmw.so'
+          SYMBOLS='source/buildscripts/symbols/arm64-v8a/libopenmw.so'
+          grep -Fq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP' "$SOURCE/components/fontloader/fontloader.cpp"
+          grep -Fq 'std::array<Glyph, 11172>' "$SOURCE/components/fontloader/koreancp949bitmap.hpp"
+          grep -aFq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP: mapped ' "$JNI"
+          grep -aFq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP: mapped ' "$SYMBOLS"
+          ! grep -Fq 'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS' "$SOURCE/components/fontloader/fontloader.cpp"
+          JNI_SHA="$(sha256sum "$JNI" | awk '{print $1}')"
+          printf '%s  %s\n' "$JNI_SHA" "$JNI" > source/buildscripts/openmw-051-patch39-libopenmw.sha256
+          echo "Korean libopenmw.so SHA-256: $JNI_SHA"
+
+      - name: Assemble final-gated mainline debug APK
+        working-directory: source
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew assembleMainlineDebug --stacktrace 2>&1 | tee korean-gradle-build.log
+
+      - name: Verify APK contains engine support but no FNT payload
+        run: |
+          set -euo pipefail
+          APK='source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk'
+          test -s "$APK"
+          unzip -l "$APK" > /tmp/apk-files.txt
+          if grep -Ei '(^|/)(fonts/)?[^/]*\.fnt$' /tmp/apk-files.txt; then
+            echo 'ERROR: FNT font binary was embedded in the APK; fonts belong in the ReTranslation mod.' >&2
+            exit 1
+          fi
+          sha256sum "$APK" | tee source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk.sha256
+          echo 'PASS Korean OpenMW Android APK built without embedded FNT files'
+
+      - name: Upload Korean test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: openmw-051-korean-fnt-test-apk
+          path: |
+            source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk
+            source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk.sha256
+            source/buildscripts/korean-native-build.log
+            source/korean-gradle-build.log
+          if-no-files-found: error
+          retention-days: 14
