@@ -67,7 +67,7 @@ jobs:
               [$r.tag_name,.name,.browser_download_url] | @tsv' /tmp/releases.json || true
           fi
           echo "Recorded verified font-pack SHA-256: $FONT_SHA"
-          echo 'The historical temp branch still contains release-upload source chunks; their reconstruction format is being audited separately.'
+          echo 'Historical payload is part_00..part_11. part_12 is an explicit placeholder and must be excluded.'
 
   build-apk:
     needs: validate-engine
@@ -112,7 +112,7 @@ jobs:
         working-directory: source/buildscripts
         run: |
           set -o pipefail
-          chmod +x build.sh
+          find . -type f -name '*.sh' -exec chmod +x {} +
           ./build.sh --arch arm64 --lto --jobs 2 --no-resources 2>&1 | tee korean-native-build.log
 
       - name: Verify native payload and refresh SHA gate
