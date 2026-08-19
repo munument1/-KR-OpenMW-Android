@@ -1,241 +1,159 @@
 param(
     [ValidateRange(1, 32)]
     [int]$Jobs = 6,
-
     [switch]$NoLto,
-
     [switch]$SkipApk
 )
 
 $ErrorActionPreference = 'Stop'
-$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$KoreanPrepare = Join-Path $PSScriptRoot 'prepare-openmw-051-korean.ps1'
-$KoreanPatcher = Join-Path $ProjectRoot 'buildscripts\patches\openmw051-final\apply-korean-cp949-bitmap-font.py'
+$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$Prepare = Join-Path $PSScriptRoot 'prepare-openmw-051-korean.ps1'
+$Patcher = Join-Path $Root 'buildscripts\patches\openmw051-final\apply-korean-cp949-bitmap-font.py'
 $Patch40 = Join-Path $PSScriptRoot 'apply-openmw-051-patch40-direct-sun-glare.ps1'
 $Patch41 = Join-Path $PSScriptRoot 'apply-openmw-051-patch41-final-release.ps1'
-$OpenMwSource = Join-Path $ProjectRoot 'buildscripts\build\arm64\openmw-prefix\src\openmw'
-$OpenMwBuild = Join-Path $ProjectRoot 'buildscripts\build\arm64\openmw-prefix\src\openmw-build'
-$JniLib = Join-Path $ProjectRoot 'app\src\main\jniLibs\arm64-v8a\libopenmw.so'
-$SymbolLib = Join-Path $ProjectRoot 'buildscripts\symbols\arm64-v8a\libopenmw.so'
-$Patch39Sha = Join-Path $ProjectRoot 'buildscripts\openmw-051-patch39-libopenmw.sha256'
-$Gradle = Join-Path $ProjectRoot 'gradlew.bat'
+$Source = Join-Path $Root 'buildscripts\build\arm64\openmw-prefix\src\openmw'
+$Build = Join-Path $Root 'buildscripts\build\arm64\openmw-prefix\src\openmw-build'
+$Jni = Join-Path $Root 'app\src\main\jniLibs\arm64-v8a\libopenmw.so'
+$Symbols = Join-Path $Root 'buildscripts\symbols\arm64-v8a\libopenmw.so'
+$NativeShaFile = Join-Path $Root 'buildscripts\openmw-051-patch39-libopenmw.sha256'
+$Gradle = Join-Path $Root 'gradlew.bat'
 
-foreach ($Required in @($KoreanPrepare, $KoreanPatcher, $Patch40, $Patch41, $Gradle)) {
-    if (-not (Test-Path -LiteralPath $Required)) {
-        throw "Missing Korean OpenMW 0.51 final-build input: $Required"
-    }
+foreach ($File in @($Prepare, $Patcher, $Patch40, $Patch41, $Gradle)) {
+    if (-not (Test-Path -LiteralPath $File)) { throw "Missing required file: $File" }
 }
-
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-    throw 'WSL is required by the existing OpenMW Android native build environment.'
+    throw 'WSL is required by the OpenMW Android native build environment.'
 }
 
-function Convert-WindowsPathToWsl([string]$WindowsPath) {
+function To-WslPath([string]$WindowsPath) {
     if ($WindowsPath -notmatch '^([A-Za-z]):(?:\\(.*))?$') {
-        throw "Unsupported project path for WSL: $WindowsPath"
+        throw "Unsupported WSL project path: $WindowsPath"
     }
-    $DriveLetter = $Matches[1].ToLowerInvariant()
-    $RelativePart = $Matches[2]
-    if ([string]::IsNullOrWhiteSpace($RelativePart)) {
-        return "/mnt/$DriveLetter"
-    }
-    return "/mnt/$DriveLetter/" + (($RelativePart -replace '\\', '/').TrimStart('/'))
+    $Drive = $Matches[1].ToLowerInvariant()
+    $Rest = $Matches[2]
+    if ([string]::IsNullOrWhiteSpace($Rest)) { return "/mnt/$Drive" }
+    return "/mnt/$Drive/" + (($Rest -replace '\\', '/').TrimStart('/'))
 }
 
-function Current-Sha256([string]$Path) {
+function Sha256([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
-$IncrementalBaseReady = $false
-if ((Test-Path -LiteralPath $OpenMwSource) -and
-    (Test-Path -LiteralPath (Join-Path $OpenMwBuild 'CMakeCache.txt')) -and
-    (Test-Path -LiteralPath $JniLib) -and
-    (Test-Path -LiteralPath $Patch39Sha)) {
-    $ExpectedBaseSha = ((Get-Content -LiteralPath $Patch39Sha -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
-    $ActualBaseSha = Current-Sha256 $JniLib
-    $IncrementalBaseReady = $ExpectedBaseSha -eq $ActualBaseSha
+$Incremental = $false
+if ((Test-Path -LiteralPath (Join-Path $Build 'CMakeCache.txt')) -and
+    (Test-Path -LiteralPath $Jni) -and
+    (Test-Path -LiteralPath $NativeShaFile)) {
+    $Expected = ((Get-Content -LiteralPath $NativeShaFile -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
+    $Incremental = $Expected -eq (Sha256 $Jni)
 }
 
-$WslProject = Convert-WindowsPathToWsl $ProjectRoot
-$WindowsHelper = Join-Path $PSScriptRoot '.openmw-051-korean-final-build.sh'
-$WslHelper = "$WslProject/tools/.openmw-051-korean-final-build.sh"
-$Mode = if ($IncrementalBaseReady) { 'incremental' } else { 'clean' }
-$LtoArg = if ($NoLto) { '' } else { '--lto' }
-
+$Mode = if ($Incremental) { 'incremental' } else { 'clean' }
 if ($Mode -eq 'clean') {
-    Write-Host ''
-    Write-Host 'No verified Patch-39 native/build-tree pair was found.' -ForegroundColor Yellow
-    Write-Host 'Preparing a clean final OpenMW 0.51 native build with the Korean FontLoader patch...' -ForegroundColor Cyan
-    & $KoreanPrepare
+    Write-Host 'Preparing clean final OpenMW 0.51 + Korean FontLoader build...' -ForegroundColor Cyan
+    & $Prepare
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
-    Write-Host ''
-    Write-Host 'Verified Patch-41/Patch-39 native base found.' -ForegroundColor Green
-    Write-Host 'Applying the Korean FontLoader patch and rebuilding only the OpenMW target...' -ForegroundColor Cyan
+    Write-Host 'Verified final native base found; rebuilding only OpenMW with Korean FontLoader...' -ForegroundColor Cyan
 }
 
-$ShellScript = @'
+$WslRoot = To-WslPath $Root
+$HelperWin = Join-Path $PSScriptRoot '.openmw-051-korean-final-build.sh'
+$HelperWsl = "$WslRoot/tools/.openmw-051-korean-final-build.sh"
+$LtoArg = if ($NoLto) { '' } else { '--lto' }
+$Helper = @'
 #!/usr/bin/env bash
 set -euo pipefail
-
-PROJECT="${OPENMW_KR_PROJECT:?OPENMW_KR_PROJECT is required}"
-MODE="${OPENMW_KR_MODE:?OPENMW_KR_MODE is required}"
-JOBS="${OPENMW_KR_JOBS:?OPENMW_KR_JOBS is required}"
-LTO_ARG="${OPENMW_KR_LTO_ARG:-}"
-SOURCE="$PROJECT/buildscripts/build/arm64/openmw-prefix/src/openmw"
-BUILD="$PROJECT/buildscripts/build/arm64/openmw-prefix/src/openmw-build"
-PATCHER="$PROJECT/buildscripts/patches/openmw051-final/apply-korean-cp949-bitmap-font.py"
-JNI="$PROJECT/app/src/main/jniLibs/arm64-v8a/libopenmw.so"
-SYMBOLS="$PROJECT/buildscripts/symbols/arm64-v8a/libopenmw.so"
-STRIP="$PROJECT/buildscripts/toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-READELF="$PROJECT/buildscripts/toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+ROOT="${OPENMW_KR_ROOT:?}"
+MODE="${OPENMW_KR_MODE:?}"
+JOBS="${OPENMW_KR_JOBS:?}"
+LTO="${OPENMW_KR_LTO:-}"
+SRC="$ROOT/buildscripts/build/arm64/openmw-prefix/src/openmw"
+BLD="$ROOT/buildscripts/build/arm64/openmw-prefix/src/openmw-build"
+PATCHER="$ROOT/buildscripts/patches/openmw051-final/apply-korean-cp949-bitmap-font.py"
+JNI="$ROOT/app/src/main/jniLibs/arm64-v8a/libopenmw.so"
+SYM="$ROOT/buildscripts/symbols/arm64-v8a/libopenmw.so"
+STRIP="$ROOT/buildscripts/toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+READELF="$ROOT/buildscripts/toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
 
 if [[ "$MODE" == clean ]]; then
-    cd "$PROJECT/buildscripts"
+    cd "$ROOT/buildscripts"
     args=(--arch arm64 --jobs "$JOBS" --no-resources)
-    if [[ -n "$LTO_ARG" ]]; then
-        args+=("$LTO_ARG")
-    fi
+    [[ -n "$LTO" ]] && args+=("$LTO")
     ./build.sh "${args[@]}"
 else
-    [[ -f "$SOURCE/components/fontloader/fontloader.cpp" ]] || {
-        echo "ERROR: final OpenMW source tree is missing: $SOURCE" >&2
-        exit 61
-    }
-    [[ -f "$BUILD/CMakeCache.txt" ]] || {
-        echo "ERROR: final OpenMW CMake build tree is missing: $BUILD" >&2
-        exit 62
-    }
-
-    python3 "$PATCHER" "$SOURCE"
-    cmake --build "$BUILD" --target openmw --parallel "$JOBS"
-
-    mapfile -t built_libs < <(find "$BUILD" -type f -name 'libopenmw.so' -print)
-    [[ ${#built_libs[@]} -eq 1 ]] || {
-        echo "ERROR: expected exactly one rebuilt libopenmw.so, found ${#built_libs[@]}" >&2
-        exit 63
-    }
-    [[ -x "$STRIP" ]] || { echo "ERROR: llvm-strip is missing: $STRIP" >&2; exit 64; }
-    mkdir -p "$(dirname "$SYMBOLS")" "$(dirname "$JNI")"
-    cp -f "${built_libs[0]}" "$SYMBOLS"
-    cp -f "${built_libs[0]}" "$JNI"
+    python3 "$PATCHER" "$SRC"
+    cmake --build "$BLD" --target openmw --parallel "$JOBS"
+    mapfile -t libs < <(find "$BLD" -type f -name libopenmw.so -print)
+    [[ ${#libs[@]} -eq 1 ]] || { echo "Expected one rebuilt libopenmw.so, found ${#libs[@]}" >&2; exit 61; }
+    mkdir -p "$(dirname "$JNI")" "$(dirname "$SYM")"
+    cp -f "${libs[0]}" "$SYM"
+    cp -f "${libs[0]}" "$JNI"
     "$STRIP" --strip-unneeded "$JNI"
 fi
 
-# A clean ExternalProject build receives the patch through OPENMW_PATCH;
-# an incremental build receives it directly above. Verify both routes identically.
-grep -Fq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP' "$SOURCE/components/fontloader/fontloader.cpp" || {
-    echo 'ERROR: Korean FontLoader source marker is missing.' >&2
-    exit 65
-}
-grep -Fq 'std::array<Glyph, 11172>' "$SOURCE/components/fontloader/koreancp949bitmap.hpp" || {
-    echo 'ERROR: generated 11,172-entry Korean mapping header is missing.' >&2
-    exit 66
-}
-! grep -Fq 'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS' "$SOURCE/components/fontloader/fontloader.cpp" || {
-    echo 'ERROR: obsolete APK-embedded KR_* alias experiment is present.' >&2
-    exit 67
-}
-
-for lib in "$SYMBOLS" "$JNI"; do
-    [[ -s "$lib" ]] || { echo "ERROR: rebuilt OpenMW library missing/empty: $lib" >&2; exit 68; }
-    grep -aFq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP: mapped ' "$lib" || {
-        echo "ERROR: Korean runtime marker string is missing from $lib" >&2
-        exit 69
-    }
+grep -Fq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP' "$SRC/components/fontloader/fontloader.cpp"
+grep -Fq 'std::array<Glyph, 11172>' "$SRC/components/fontloader/koreancp949bitmap.hpp"
+! grep -Fq 'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS' "$SRC/components/fontloader/fontloader.cpp"
+for lib in "$SYM" "$JNI"; do
+    test -s "$lib"
+    grep -aFq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP: mapped ' "$lib"
 done
-
-[[ $(stat -c %s "$JNI") -lt $(stat -c %s "$SYMBOLS") ]] || {
-    echo 'ERROR: packaged JNI library was not stripped.' >&2
-    exit 70
-}
+test "$(stat -c %s "$JNI")" -lt "$(stat -c %s "$SYM")"
 if [[ -x "$READELF" ]] && "$READELF" -S "$JNI" 2>/dev/null | grep -Eq '\.debug_(info|line|str|abbrev)'; then
-    echo 'ERROR: packaged JNI library still contains DWARF debug sections.' >&2
-    exit 71
+    echo 'Packaged JNI still contains DWARF sections.' >&2
+    exit 62
 fi
-
-echo 'PASS OpenMW 0.51 final native build with Korean CP949-layout FontLoader support'
+echo 'PASS final OpenMW native build with Korean bitmap FontLoader'
 '@
-
-[IO.File]::WriteAllText(
-    $WindowsHelper,
-    ($ShellScript -replace "`r`n", "`n"),
-    [Text.UTF8Encoding]::new($false)
-)
-
+[IO.File]::WriteAllText($HelperWin, ($Helper -replace "`r`n", "`n"), [Text.UTF8Encoding]::new($false))
 try {
     & wsl.exe env `
-        "OPENMW_KR_PROJECT=$WslProject" `
+        "OPENMW_KR_ROOT=$WslRoot" `
         "OPENMW_KR_MODE=$Mode" `
         "OPENMW_KR_JOBS=$Jobs" `
-        "OPENMW_KR_LTO_ARG=$LtoArg" `
-        bash $WslHelper
+        "OPENMW_KR_LTO=$LtoArg" `
+        bash $HelperWsl
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
-finally {
-    Remove-Item -LiteralPath $WindowsHelper -Force -ErrorAction SilentlyContinue
-}
-
-$PatchedFontLoader = Join-Path $OpenMwSource 'components\fontloader\fontloader.cpp'
-$GeneratedHeader = Join-Path $OpenMwSource 'components\fontloader\koreancp949bitmap.hpp'
-foreach ($Required in @($JniLib, $SymbolLib, $PatchedFontLoader, $GeneratedHeader)) {
-    if (-not (Test-Path -LiteralPath $Required)) {
-        throw "Korean final native build output is missing: $Required"
-    }
+} finally {
+    Remove-Item -LiteralPath $HelperWin -Force -ErrorAction SilentlyContinue
 }
 
-$FontLoaderText = [IO.File]::ReadAllText($PatchedFontLoader)
-if (-not $FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_CP949_BITMAP')) {
-    throw 'Built OpenMW source does not contain the Korean bitmap FontLoader marker.'
-}
-if ($FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_FONT_ALIAS')) {
-    throw 'Obsolete KR_* APK font-alias patch is still present.'
-}
-$HeaderText = [IO.File]::ReadAllText($GeneratedHeader)
-if (-not $HeaderText.Contains('std::array<Glyph, 11172>')) {
-    throw 'Korean mapping header does not contain exactly 11,172 modern Hangul entries.'
+foreach ($File in @(
+    $Jni,
+    $Symbols,
+    (Join-Path $Source 'components\fontloader\fontloader.cpp'),
+    (Join-Path $Source 'components\fontloader\koreancp949bitmap.hpp')
+)) {
+    if (-not (Test-Path -LiteralPath $File)) { throw "Missing Korean build output: $File" }
 }
 
-$NewNativeSha = Current-Sha256 $JniLib
-[IO.File]::WriteAllText(
-    $Patch39Sha,
-    "$NewNativeSha  $JniLib`n",
-    [Text.UTF8Encoding]::new($false)
-)
-Write-Host "Updated Patch-39 native SHA gate for the Korean build: $NewNativeSha" -ForegroundColor Green
+$NewSha = Sha256 $Jni
+[IO.File]::WriteAllText($NativeShaFile, "$NewSha  $Jni`n", [Text.UTF8Encoding]::new($false))
+Write-Host "Korean native SHA gate: $NewSha" -ForegroundColor Green
 
-# Patch 40/41 are final-state validators and do not rebuild native code.
+# Patch 40 and 41 are validators only; they must still pass unchanged.
 & $Patch40
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $Patch41
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if (-not $SkipApk) {
-    Write-Host ''
-    Write-Host 'Assembling Android debug APK through the existing final-release Gradle gate...' -ForegroundColor Cyan
-    Push-Location $ProjectRoot
+    Push-Location $Root
     try {
-        & $Gradle assembleDebug
+        & $Gradle assembleMainlineDebug
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    }
-    finally {
+    } finally {
         Pop-Location
     }
 
-    $Apk = Join-Path $ProjectRoot 'app\build\outputs\apk\debug\app-debug.apk'
-    if (-not (Test-Path -LiteralPath $Apk)) {
-        throw "Gradle succeeded but debug APK was not found: $Apk"
-    }
-    $ApkSha = Current-Sha256 $Apk
-    Write-Host ''
+    $Apk = Join-Path $Root 'app\build\outputs\apk\mainline\debug\app-mainline-debug.apk'
+    if (-not (Test-Path -LiteralPath $Apk)) { throw "APK not found: $Apk" }
     Write-Host 'OpenMW 0.51 Korean Android test APK: READY' -ForegroundColor Green
     Write-Host "APK: $Apk"
-    Write-Host "SHA-256: $ApkSha"
+    Write-Host "SHA-256: $(Sha256 $Apk)"
 } else {
-    Write-Host ''
-    Write-Host 'OpenMW 0.51 Korean final native runtime: READY (APK assembly skipped)' -ForegroundColor Green
+    Write-Host 'OpenMW 0.51 Korean native runtime: READY (APK assembly skipped)' -ForegroundColor Green
 }
 
-Write-Host 'Engine change: Unicode Hangul -> existing CP949-layout FNT/TEX atlas (11,172 syllables).'
-Write-Host 'Font binaries remain in the ReTranslation mod, not in the APK.'
+Write-Host 'Fonts remain in the ReTranslation mod; the APK contains engine support only.'
