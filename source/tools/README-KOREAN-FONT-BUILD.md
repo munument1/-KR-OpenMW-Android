@@ -17,7 +17,7 @@ asset: Morrowind_CP949_Classic_Fonts.zip
 sha256: 3a7d2442d43d7ed9e0b42d6d8d75068340b00893e06bb2fa696d4ac440bbeee7
 ```
 
-The release uses the Korean bitmap layout already expected by the runtime patch:
+The release uses the Korean bitmap layout expected by the runtime patch:
 
 - texture: 2048 x 2048 RGBA
 - Korean grid begins at y=512
@@ -27,7 +27,9 @@ The release uses the Korean bitmap layout already expected by the runtime patch:
 
 No font binary is committed to this Android repository and no font binary is embedded in the APK.
 
-## Build the Korean APK runtime
+## Build the Korean APK
+
+The current Android repository is already at the Patch-41 final-release state. The last native-code release step is Patch 39; Patch 40 and Patch 41 validate/calibrate the final release without rebuilding native code.
 
 From `source\tools` in PowerShell:
 
@@ -35,19 +37,39 @@ From `source\tools` in PowerShell:
 .\build-openmw-051-korean.ps1 -Jobs 6
 ```
 
-This wrapper:
+The wrapper chooses the safest route automatically.
 
-1. runs the existing OpenMW 0.51 Android prepare path;
-2. appends `apply-korean-cp949-bitmap-font.py` to the OpenMW patch chain;
-3. rebuilds the Android OpenMW runtime;
-4. verifies the `OPENMW_ANDROID_051_KOREAN_CP949_BITMAP` marker;
-5. verifies the generated 11,172-entry Hangul mapping header.
+### Existing final build tree
 
-Then assemble the APK normally:
+If the current `libopenmw.so` matches `buildscripts\openmw-051-patch39-libopenmw.sha256` and the final OpenMW CMake build tree exists, the wrapper:
 
-```powershell
-cd ..
-.\gradlew.bat assembleDebug
+1. applies `apply-korean-cp949-bitmap-font.py` directly to that final OpenMW source tree;
+2. rebuilds **only** the `openmw` target;
+3. copies/strips the rebuilt ARM64 `libopenmw.so`;
+4. verifies the 11,172-entry Unicode Hangul mapping and runtime marker;
+5. rewrites the Patch-39 native SHA gate for the Korean binary;
+6. runs the existing Patch-40 and Patch-41 final-state validators;
+7. runs `gradlew.bat assembleDebug`.
+
+This preserves the current final renderer, shadows, OMWFX, launcher and release state instead of falling back to an old Patch-3 runtime.
+
+### Clean checkout / missing final build tree
+
+If the verified final native/build-tree pair is unavailable, the wrapper performs a clean native build:
+
+1. runs `prepare-openmw-051-korean.ps1`;
+2. keeps the existing consolidated final Android runtime patcher and GL4ES patch chain;
+3. appends the Korean FontLoader patch to `OPENMW_PATCH`;
+4. runs the native `build.sh` for ARM64 with `--no-resources`, so the already-final Patch-41 APK resources are not replaced;
+5. records the new Korean native SHA;
+6. runs Patch 40/41 validation and normal Gradle APK assembly.
+
+Use `-SkipApk` when only the native runtime is wanted. `-NoLto` is available for a clean diagnostic build.
+
+Expected output APK:
+
+```text
+source\app\build\outputs\apk\debug\app-debug.apk
 ```
 
 ## Build the Android ReTranslation mod ZIP
@@ -101,7 +123,7 @@ mods/
 
 ## Runtime rule
 
-The ReTranslation mod data directory must be active after the base `Data Files` directory so its `Fonts/` files have higher VFS priority. The Android launcher already emits active additional data directories in order, so this stays a normal mod-install concern rather than an APK resource hack.
+The ReTranslation mod data directory must be active after the base `Data Files` directory so its `Fonts/` files have higher VFS priority. This is normal OpenMW data-directory precedence; no APK resource-font hack is used.
 
 Expected runtime log when a Korean FNT is loaded:
 
