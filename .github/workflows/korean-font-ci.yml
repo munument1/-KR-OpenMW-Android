@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  validate-engine:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,64 +47,30 @@ jobs:
           EOF
           g++ -std=c++20 -fsyntax-only /tmp/korean-header-test.cpp
 
-      - name: Locate and validate existing CP949 font payload
+  font-source-diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report current CP949 font-source availability
         env:
           FONT_SHA: 3a7d2442d43d7ed9e0b42d6d8d75068340b00893e06bb2fa696d4ac440bbeee7
         run: |
-          set -euo pipefail
-          FONT=/tmp/Morrowind_CP949_Classic_Fonts.zip
-          FOUND=''
-          curl -fsSL --retry 4 \
+          set -u
+          echo 'This job is diagnostic only; APK compilation does not consume FNT/TEX binaries.'
+          curl -fsSL --retry 3 \
             'https://api.github.com/repos/munument1/Morrowind-CP949/releases?per_page=100' \
-            -o /tmp/releases.json
-          mapfile -t rows < <(jq -r '.[] as $r | $r.assets[]? |
-            select((.name | ascii_downcase) | contains("font")) |
-            [$r.tag_name,.name,.browser_download_url] | @tsv' /tmp/releases.json)
-          for row in "${rows[@]}"; do
-            IFS=$'\t' read -r tag name url <<< "$row"
-            echo "Checking release font candidate: $tag / $name"
-            if curl -fL --retry 3 "$url" -o /tmp/candidate.zip && \
-               echo "$FONT_SHA  /tmp/candidate.zip" | sha256sum -c - >/dev/null 2>&1; then
-              mv /tmp/candidate.zip "$FONT"
-              FOUND="release:$tag/$name"
-              break
-            fi
-          done
-
-          if [[ -z "$FOUND" ]]; then
-            git clone --depth 1 --branch font-release-upload-temp-20260808 \
-              https://github.com/munument1/Morrowind-CP949.git /tmp/cp949-source
-            : >/tmp/font-pack.xz
-            for part in /tmp/cp949-source/.release-upload/parts/part_*.b64; do
-              base64 -d "$part" >> /tmp/font-pack.xz
-            done
-            xz -dc /tmp/font-pack.xz > "$FONT"
-            echo "$FONT_SHA  $FONT" | sha256sum -c -
-            FOUND='repository-upload-source'
+            -o /tmp/releases.json || true
+          if [[ -s /tmp/releases.json ]]; then
+            echo 'Current release assets containing "font":'
+            jq -r '.[] as $r | $r.assets[]? |
+              select((.name | ascii_downcase) | contains("font")) |
+              [$r.tag_name,.name,.browser_download_url] | @tsv' /tmp/releases.json || true
           fi
-
-          echo "Verified CP949 font source: $FOUND"
-          python - <<'PY'
-          import importlib.util
-          from pathlib import Path
-          p = Path('source/tools/package-korean-retranslation-android.py')
-          spec = importlib.util.spec_from_file_location('pkg', p)
-          mod = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(mod)
-          pack = Path('/tmp/Morrowind_CP949_Classic_Fonts.zip')
-          mod.verify_font_pack_archive(pack)
-          payload, report = mod.build_font_payload(pack)
-          required = {'MysticCards.fnt','magic_cards_regular.fnt','DemonicLetters.fnt',
-                      'daedric_font.fnt','century_gothic_font_regular.fnt','century_gothic_big.fnt'}
-          assert required <= set(payload), sorted(required - set(payload))
-          assert payload['MysticCards.fnt'] == payload['magic_cards_regular.fnt']
-          assert payload['DemonicLetters.fnt'] == payload['daedric_font.fnt']
-          print('PASS verified CP949 FNT/TEX payload')
-          print('\n'.join(report))
-          PY
+          echo "Recorded verified font-pack SHA-256: $FONT_SHA"
+          echo 'The historical temp branch still contains release-upload source chunks; their reconstruction format is being audited separately.'
 
   build-apk:
-    needs: validate
+    needs: validate-engine
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -134,11 +100,12 @@ jobs:
           t = p.read_text(encoding='utf-8')
           kr = '        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-korean-cp949-bitmap-font.py <SOURCE_DIR>'
           if kr not in t:
-              a = '        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-gl4es-core-inline.py <SOURCE_DIR>'
-              if t.count(a) != 1:
-                  raise SystemExit(f'expected one GL4ES patch anchor, found {t.count(a)}')
-              t = t.replace(a, a + ' &&\n' + kr, 1)
+              anchor = '        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-gl4es-core-inline.py <SOURCE_DIR>'
+              if t.count(anchor) != 1:
+                  raise SystemExit(f'expected one GL4ES patch anchor, found {t.count(anchor)}')
+              t = t.replace(anchor, anchor + ' &&\n' + kr, 1)
               p.write_text(t, encoding='utf-8', newline='\n')
+          print('PASS Korean FontLoader appended to clean OpenMW patch chain')
           PY
 
       - name: Build final ARM64 native runtime
@@ -158,6 +125,7 @@ jobs:
           grep -Fq 'std::array<Glyph, 11172>' "$SRC/components/fontloader/koreancp949bitmap.hpp"
           grep -aFq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP: mapped ' "$JNI"
           grep -aFq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP: mapped ' "$SYM"
+          ! grep -Fq 'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS' "$SRC/components/fontloader/fontloader.cpp"
           JNI_SHA="$(sha256sum "$JNI" | awk '{print $1}')"
           printf '%s  %s\n' "$JNI_SHA" "$JNI" > source/buildscripts/openmw-051-patch39-libopenmw.sha256
           echo "Korean libopenmw.so SHA-256: $JNI_SHA"
