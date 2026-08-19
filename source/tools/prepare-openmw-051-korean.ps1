@@ -40,21 +40,21 @@ if (-not $Text.Contains($PatcherLine)) {
     Write-Host 'OpenMW 0.51 Korean bitmap FontLoader patch added to OPENMW_PATCH.' -ForegroundColor Cyan
 }
 
-# The base runtime prepare script only knows its own runtime markers. If an
-# already-extracted OpenMW tree predates either Korean patch stage, force just
-# the OpenMW ExternalProject to be recreated while retaining third-party builds.
+# The base runtime prepare script only knows its own runtime markers. Recreate
+# just the OpenMW ExternalProject if the extracted source predates the Korean
+# patch, or if it contains the abandoned APK-embedded KR_* alias experiment.
 if (Test-Path $OpenMwPrefix) {
     $FontLoader = Join-Path $OpenMwPrefix 'src\openmw\components\fontloader\fontloader.cpp'
     $HasKoreanBitmap = $false
-    $HasKoreanAlias = $false
+    $HasObsoleteKoreanAlias = $false
     if (Test-Path $FontLoader) {
         $FontLoaderText = Read-Lf $FontLoader
         $HasKoreanBitmap = $FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_CP949_BITMAP')
-        $HasKoreanAlias = $FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_FONT_ALIAS')
+        $HasObsoleteKoreanAlias = $FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_FONT_ALIAS')
     }
-    if (-not $HasKoreanBitmap -or -not $HasKoreanAlias) {
+    if (-not $HasKoreanBitmap -or $HasObsoleteKoreanAlias) {
         Remove-Item $OpenMwPrefix -Recurse -Force
-        Write-Host 'Removed stale OpenMW source tree so the complete Korean bitmap/alias patch applies cleanly.' -ForegroundColor Yellow
+        Write-Host 'Removed stale OpenMW source tree so the mod-provided Korean FNT patch applies cleanly.' -ForegroundColor Yellow
     }
 }
 
@@ -70,5 +70,5 @@ foreach ($Token in @(
 
 Write-Host ''
 Write-Host 'OpenMW 0.51 Korean bitmap runtime setup: READY' -ForegroundColor Green
-Write-Host 'Game-data encoding remains win1252/UTF-8 handling from the existing KR runtime.'
-Write-Host 'The added patch maps Unicode Hangul to the compatibility atlas and prefers collision-free KR_* font names.'
+Write-Host 'Game-data encoding remains the existing KR runtime UTF-8/Win1252 handling.'
+Write-Host 'The added patch only maps Unicode Hangul to the CP949-layout FNT/TEX atlas supplied by the ReTranslation mod.'
