@@ -7,17 +7,15 @@ The Android build and the Korean translation mod have separate jobs:
 
 Translation data remains UTF-8. Nothing in the ESP/MRK/TOP/CEL/l10n set is converted to CP949.
 
-## Existing verified font source
+## Verified font source
 
-The font payload is reused from the existing `munument1/Morrowind-CP949` release instead of being regenerated:
+The font payload reuses the existing `munument1/Morrowind-CP949` CP949 bitmap-font build instead of regenerating it. The binary identity used by this integration is:
 
 ```text
-tag:   v1.0.7-rc6-classic-cp949-pre1
-asset: Morrowind_CP949_Classic_Fonts.zip
 sha256: 3a7d2442d43d7ed9e0b42d6d8d75068340b00893e06bb2fa696d4ac440bbeee7
 ```
 
-The release uses the Korean bitmap layout expected by the runtime patch:
+The payload uses the layout expected by the runtime patch:
 
 - texture: 2048 x 2048 RGBA
 - Korean grid begins at y=512
@@ -29,7 +27,7 @@ No font binary is committed to this Android repository and no font binary is emb
 
 ## Build the Korean APK
 
-The current Android repository is already at the Patch-41 final-release state. The last native-code release step is Patch 39; Patch 40 and Patch 41 validate/calibrate the final release without rebuilding native code.
+The Android repository is at the Patch-41 final-release state. Patch 39 is the last native-code rebuild; Patch 40 and Patch 41 are final-state validation/calibration steps and do not rebuild native code.
 
 From `source\tools` in PowerShell:
 
@@ -49,42 +47,34 @@ If the current `libopenmw.so` matches `buildscripts\openmw-051-patch39-libopenmw
 4. verifies the 11,172-entry Unicode Hangul mapping and runtime marker;
 5. rewrites the Patch-39 native SHA gate for the Korean binary;
 6. runs the existing Patch-40 and Patch-41 final-state validators;
-7. runs `gradlew.bat assembleDebug`.
+7. runs `gradlew.bat assembleMainlineDebug`.
 
-This preserves the current final renderer, shadows, OMWFX, launcher and release state instead of falling back to an old Patch-3 runtime.
+This preserves the final renderer, shadows, OMWFX, launcher and release state instead of falling back to an early runtime build.
 
 ### Clean checkout / missing final build tree
 
 If the verified final native/build-tree pair is unavailable, the wrapper performs a clean native build:
 
 1. runs `prepare-openmw-051-korean.ps1`;
-2. keeps the existing consolidated final Android runtime patcher and GL4ES patch chain;
+2. keeps the consolidated final Android runtime patcher and GL4ES patch chain;
 3. appends the Korean FontLoader patch to `OPENMW_PATCH`;
 4. runs the native `build.sh` for ARM64 with `--no-resources`, so the already-final Patch-41 APK resources are not replaced;
 5. records the new Korean native SHA;
-6. runs Patch 40/41 validation and normal Gradle APK assembly.
+6. runs Patch 40/41 validation and `assembleMainlineDebug`.
 
 Use `-SkipApk` when only the native runtime is wanted. `-NoLto` is available for a clean diagnostic build.
 
 Expected output APK:
 
 ```text
-source\app\build\outputs\apk\debug\app-debug.apk
+source\app\build\outputs\apk\mainline\debug\app-mainline-debug.apk
 ```
 
 ## Build the Android ReTranslation mod ZIP
 
-`package-korean-retranslation-android.py` takes the current KR1/full patch ZIP, keeps only the `mods/Morrowind_Korean_ReTranslation` data, downloads the verified font release, validates it, and adds a `Fonts/` directory.
+`package-korean-retranslation-android.py` takes the current KR1/full patch ZIP, keeps only `mods/Morrowind_Korean_ReTranslation`, validates the known CP949 font payload, and adds `Fonts/`.
 
-Example:
-
-```powershell
-python .\package-korean-retranslation-android.py `
-  --base-zip 'D:\Morrowind-Korean-OpenMW-0.51.0-KR1-Full.zip' `
-  --output 'D:\Morrowind_Korean_ReTranslation_Android_FNT.zip'
-```
-
-If the font release ZIP is already downloaded, avoid a network download with:
+If the font ZIP is already downloaded, this is the most deterministic form:
 
 ```powershell
 python .\package-korean-retranslation-android.py `
@@ -93,7 +83,7 @@ python .\package-korean-retranslation-android.py `
   --output 'D:\Morrowind_Korean_ReTranslation_Android_FNT.zip'
 ```
 
-The packager verifies the release SHA-256, FNT structure, 2048x2048 TEX dimensions, and the slot `0xFF` Korean atlas signature before writing anything.
+The packager verifies SHA-256, FNT structure, 2048x2048 TEX dimensions, and the slot `0xFF` Korean atlas signature before writing the output. Translation files are copied byte-for-byte and remain UTF-8.
 
 ## Final mod layout
 
@@ -119,7 +109,7 @@ mods/
     ANDROID-FNT-MANIFEST.txt
 ```
 
-`MysticCards.fnt` is byte-identical to `magic_cards_regular.fnt`; `DemonicLetters.fnt` is byte-identical to `daedric_font.fnt`. This covers both OpenMW default font names and imported `Morrowind.ini` font names without requiring a user cfg override. The FNT internal TEX names remain unchanged, so duplicate TEX aliases are unnecessary.
+`MysticCards.fnt` is byte-identical to `magic_cards_regular.fnt`; `DemonicLetters.fnt` is byte-identical to `daedric_font.fnt`. This covers OpenMW default font names and imported `Morrowind.ini` font names without requiring a user cfg override. The FNT internal TEX names remain unchanged, so TEX aliases are unnecessary.
 
 ## Runtime rule
 
