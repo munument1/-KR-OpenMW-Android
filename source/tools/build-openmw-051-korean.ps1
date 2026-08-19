@@ -49,7 +49,7 @@ if (Test-Path $GeneratedRoot) {
 }
 
 Write-Host ''
-Write-Host 'Building complete Korean bitmap font set (Font 0/1/2 + OpenMW aliases)...' -ForegroundColor Cyan
+Write-Host 'Building complete Korean bitmap font set (Font 0/1/2 -> collision-free KR_* assets)...' -ForegroundColor Cyan
 & $Python.Source $FontBuilder `
     --vanilla-fonts $VanillaFontsDir `
     --ttf $KoreanTtf `
@@ -79,8 +79,13 @@ if (-not (Test-Path $PatchedFontLoader)) {
     throw "Built OpenMW source tree is missing: $PatchedFontLoader"
 }
 $FontLoaderText = [IO.File]::ReadAllText($PatchedFontLoader)
-if (-not $FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_CP949_BITMAP')) {
-    throw 'Built OpenMW source does not contain the Korean bitmap FontLoader marker.'
+foreach ($Marker in @(
+    'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP',
+    'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS'
+)) {
+    if (-not $FontLoaderText.Contains($Marker)) {
+        throw "Built OpenMW source does not contain the Korean FontLoader marker: $Marker"
+    }
 }
 $GeneratedHeader = Join-Path $OpenMwSource 'components\fontloader\koreancp949bitmap.hpp'
 if (-not (Test-Path $GeneratedHeader)) {
@@ -92,38 +97,43 @@ if (-not $HeaderText.Contains('std::array<Glyph, 11172>')) {
 }
 
 New-Item -ItemType Directory -Force -Path $AssetFonts | Out-Null
+Get-ChildItem $AssetFonts -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like 'KR_*.fnt' -or $_.Name -like 'KR_*.tex' } |
+    Remove-Item -Force
 Get-ChildItem $GeneratedFonts -File | ForEach-Object {
     Copy-Item $_.FullName (Join-Path $AssetFonts $_.Name) -Force
 }
 Copy-Item $Manifest (Join-Path $AssetFonts 'korean_bitmap_font_manifest.json') -Force
 
-$ExpectedFnt = @(
-    'magic_cards_regular.fnt',
-    'MysticCards.fnt',
-    'century_gothic_font_regular.fnt',
-    'daedric_font.fnt',
-    'DemonicLetters.fnt'
+$ExpectedAssets = @(
+    'KR_magic_cards_regular.fnt',
+    'KR_magic_cards_regular.tex',
+    'KR_century_gothic_font_regular.fnt',
+    'KR_century_gothic_font_regular.tex',
+    'KR_daedric_font.fnt',
+    'KR_daedric_font.tex'
 )
-foreach ($Name in $ExpectedFnt) {
+foreach ($Name in $ExpectedAssets) {
     $Path = Join-Path $AssetFonts $Name
     if (-not (Test-Path $Path) -or (Get-Item $Path).Length -le 0) {
         throw "APK Korean font asset is missing/empty: $Path"
     }
 }
 
-$TexCount = @(Get-ChildItem $AssetFonts -File -Filter '*.tex').Count
-if ($TexCount -lt 3) {
-    throw "Expected at least three Korean bitmap TEX assets, found $TexCount in $AssetFonts"
+$KrAssets = @(Get-ChildItem $AssetFonts -File | Where-Object { $_.Name -like 'KR_*.fnt' -or $_.Name -like 'KR_*.tex' })
+if ($KrAssets.Count -ne 6) {
+    throw "Expected exactly six collision-free Korean FNT/TEX assets, found $($KrAssets.Count) in $AssetFonts"
 }
 
 Write-Host ''
 Write-Host 'OpenMW 0.51 Korean APK runtime payload: READY' -ForegroundColor Green
 Write-Host 'Engine: Unicode Hangul -> CP949-layout bitmap atlas mapping (11,172 syllables)'
-Write-Host 'Font 0: magic_cards_regular + MysticCards alias'
-Write-Host 'Font 1: century_gothic_font_regular'
-Write-Host 'Font 2: daedric_font + DemonicLetters alias'
+Write-Host 'Font 0: magic_cards_regular / MysticCards -> KR_magic_cards_regular'
+Write-Host 'Font 1: century_gothic_font_regular -> KR_century_gothic_font_regular'
+Write-Host 'Font 2: daedric_font / DemonicLetters -> KR_daedric_font'
 Write-Host "APK font assets: $AssetFonts"
-Write-Host 'No openmw.cfg/user.cfg font override is required for these standard font names.'
+Write-Host 'KR_* names prevent the original Data Files/Fonts from overriding the APK font resources.'
+Write-Host 'No openmw.cfg/user.cfg font override is required.'
 Write-Host ''
 Write-Host 'Next APK step:'
 Write-Host '  .\gradlew.bat assembleDebug'
