@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Patch OpenMW 0.51 FontLoader to expose a Classic-style CP949 bitmap atlas as Unicode Hangul.
 
-This does not change OpenMW's game-data encoding.  It only detects the special
-2048x2048 / 8x11 / y=512 bitmap-font layout produced by the Korean FNT builder
-and registers U+AC00..U+D7A3 MyGUI code points at the corresponding atlas cells.
+This does not change OpenMW's game-data encoding. It detects the special
+2048x2048 / 8x11 / y=512 bitmap-font layout produced by the Korean FNT builder,
+registers U+AC00..U+D7A3 MyGUI code points at the corresponding atlas cells,
+and prefers collision-free KR_* font asset names for the vanilla/OpenMW font
+selection names used by Morrowind.ini and OpenMW fallbacks.
 """
 from __future__ import annotations
 
@@ -11,6 +13,7 @@ import sys
 from pathlib import Path
 
 MARKER = "OPENMW_ANDROID_051_KOREAN_CP949_BITMAP"
+ALIAS_MARKER = "OPENMW_ANDROID_051_KOREAN_FONT_ALIAS"
 HEADER_NAME = "koreancp949bitmap.hpp"
 ATLAS_W = 2048
 ATLAS_H = 2048
@@ -91,10 +94,38 @@ def render_header(entries: list[tuple[int, int, int]]) -> str:
     return "\n".join(lines)
 
 
+KOREAN_ALIAS_BLOCK = r'''        // OPENMW_ANDROID_051_KOREAN_FONT_ALIAS
+        // The engine-owned resources/vfs archive has the lowest data-directory priority,
+        // so a vanilla Data Files/Fonts file with the same name would otherwise win.
+        // Prefer collision-free KR_* names when present, then fall back to the requested
+        // vanilla/OpenMW name if this runtime was built without the Korean assets.
+        std::string_view koreanFileName = fileName;
+        if (Misc::StringUtils::ciEqual(fileName, "magic_cards_regular")
+            || Misc::StringUtils::ciEqual(fileName, "MysticCards"))
+            koreanFileName = "KR_magic_cards_regular";
+        else if (Misc::StringUtils::ciEqual(fileName, "century_gothic_font_regular"))
+            koreanFileName = "KR_century_gothic_font_regular";
+        else if (Misc::StringUtils::ciEqual(fileName, "daedric_font")
+            || Misc::StringUtils::ciEqual(fileName, "DemonicLetters"))
+            koreanFileName = "KR_daedric_font";
+
+        if (!Misc::StringUtils::ciEqual(koreanFileName, fileName))
+        {
+            const VFS::Path::Normalized koreanFntPath = VFS::Path::join(fonts, koreanFileName, fnt);
+            if (const Files::IStreamPtr stream = mVFS->find(koreanFntPath))
+            {
+                loadBitmapFont(fontId, koreanFntPath, *stream);
+                return;
+            }
+        }
+
+'''
+
+
 KOREAN_BLOCK = r'''        // OPENMW_ANDROID_051_KOREAN_CP949_BITMAP
         // A Korean compatibility FNT keeps the normal 256 single-byte slots, but stores
-        // the CP949 double-byte glyph atlas below y=512 in a 2048x2048 texture.  Classic
-        // Morrowind used slot 0xFF as a runtime DBCS template.  OpenMW already receives
+        // the CP949 double-byte glyph atlas below y=512 in a 2048x2048 texture. Classic
+        // Morrowind used slot 0xFF as a runtime DBCS template. OpenMW already receives
         // UTF-8/Unicode UI text, so expose those atlas cells directly as Unicode glyphs.
         {
             constexpr int koreanAtlasWidth = 2048;
@@ -181,6 +212,15 @@ def patch_source(source_root: Path) -> None:
             "limits include",
         )
 
+    if ALIAS_MARKER not in text:
+        alias_anchor = '        constexpr VFS::Path::ExtensionView fnt("fnt");\n'
+        text = replace_once(
+            text,
+            alias_anchor,
+            alias_anchor + "\n" + KOREAN_ALIAS_BLOCK,
+            "Korean font alias insertion",
+        )
+
     if MARKER not in text:
         insertion_anchor = "        // These are required as well, but the fonts don't provide them\n"
         text = replace_once(
@@ -193,11 +233,14 @@ def patch_source(source_root: Path) -> None:
     if text.count(MARKER) != 2:
         # One source comment and one runtime log string are expected.
         raise RuntimeError(f"unexpected {MARKER} marker count in patched source: {text.count(MARKER)}")
+    if text.count(ALIAS_MARKER) != 1:
+        raise RuntimeError(f"unexpected {ALIAS_MARKER} marker count in patched source: {text.count(ALIAS_MARKER)}")
     if include_line not in text:
         raise RuntimeError("generated Korean bitmap header include is missing after patch")
 
     cpp.write_text(text, encoding="utf-8", newline="\n")
     print(f"PASS {MARKER}")
+    print(f"PASS {ALIAS_MARKER}")
     print(f"OpenMW source: {source_root}")
     print(f"Generated mapping: {header} ({len(entries)} Hangul syllables)")
 
