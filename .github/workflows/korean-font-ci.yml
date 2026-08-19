@@ -1,0 +1,87 @@
+name: Korean bitmap font integration
+
+on:
+  push:
+    branches:
+      - agent/korean-bitmap-fonts
+  pull_request:
+    paths:
+      - 'source/buildscripts/patches/openmw051-final/apply-korean-cp949-bitmap-font.py'
+      - 'source/tools/package-korean-retranslation-android.py'
+      - 'source/tools/prepare-openmw-051-korean.ps1'
+      - 'source/tools/build-openmw-051-korean.ps1'
+      - '.github/workflows/korean-font-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Python syntax
+        run: |
+          python -m py_compile \
+            source/buildscripts/patches/openmw051-final/apply-korean-cp949-bitmap-font.py \
+            source/tools/package-korean-retranslation-android.py
+
+      - name: Patch exact OpenMW 0.51 Android source revision
+        env:
+          OPENMW_COMMIT: f4bec41444214a7903bebd178389ca22ca13f646
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/OpenMW/openmw.git /tmp/openmw
+          git -C /tmp/openmw checkout "$OPENMW_COMMIT"
+          python source/buildscripts/patches/openmw051-final/apply-korean-cp949-bitmap-font.py /tmp/openmw
+          python source/buildscripts/patches/openmw051-final/apply-korean-cp949-bitmap-font.py /tmp/openmw
+          grep -Fq 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP' /tmp/openmw/components/fontloader/fontloader.cpp
+          grep -Fq 'std::array<Glyph, 11172>' /tmp/openmw/components/fontloader/koreancp949bitmap.hpp
+          ! grep -Fq 'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS' /tmp/openmw/components/fontloader/fontloader.cpp
+
+      - name: Compile generated CP949 mapping header
+        run: |
+          cat >/tmp/korean-header-test.cpp <<'EOF'
+          #include "/tmp/openmw/components/fontloader/koreancp949bitmap.hpp"
+          static_assert(KoreanCp949Bitmap::glyphs.size() == 11172);
+          static_assert(KoreanCp949Bitmap::glyphs.front().codepoint == 0xAC00);
+          static_assert(KoreanCp949Bitmap::glyphs.back().codepoint == 0xD7A3);
+          int main() { return 0; }
+          EOF
+          g++ -std=c++20 -fsyntax-only /tmp/korean-header-test.cpp
+
+      - name: Download and validate existing CP949 font release
+        env:
+          FONT_URL: https://github.com/munument1/Morrowind-CP949/releases/download/v1.0.7-rc6-classic-cp949-pre1/Morrowind_CP949_Classic_Fonts.zip
+          FONT_SHA: 3a7d2442d43d7ed9e0b42d6d8d75068340b00893e06bb2fa696d4ac440bbeee7
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-delay 2 "$FONT_URL" -o /tmp/Morrowind_CP949_Classic_Fonts.zip
+          echo "$FONT_SHA  /tmp/Morrowind_CP949_Classic_Fonts.zip" | sha256sum -c -
+          python - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          script = Path('source/tools/package-korean-retranslation-android.py')
+          spec = importlib.util.spec_from_file_location('pkg', script)
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          pack = Path('/tmp/Morrowind_CP949_Classic_Fonts.zip')
+          mod.verify_font_pack_archive(pack)
+          payload, report = mod.build_font_payload(pack)
+          required = {
+              'MysticCards.fnt', 'magic_cards_regular.fnt',
+              'DemonicLetters.fnt', 'daedric_font.fnt',
+              'century_gothic_font_regular.fnt', 'century_gothic_big.fnt',
+          }
+          assert required <= set(payload), sorted(required - set(payload))
+          assert payload['MysticCards.fnt'] == payload['magic_cards_regular.fnt']
+          assert payload['DemonicLetters.fnt'] == payload['daedric_font.fnt']
+          print('PASS verified release font payload')
+          for row in report:
+              print(row)
+          PY
