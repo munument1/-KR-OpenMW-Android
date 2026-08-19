@@ -1,13 +1,4 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$VanillaFontsDir,
-
-    [Parameter(Mandatory = $true)]
-    [string]$KoreanTtf,
-
-    [ValidateRange(8, 32)]
-    [int]$FontSize = 11,
-
     [ValidateRange(1, 64)]
     [int]$Jobs = 6,
 
@@ -16,61 +7,21 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$FontBuilder = Join-Path $PSScriptRoot 'build-korean-bitmap-fonts.py'
 $KoreanPrepare = Join-Path $PSScriptRoot 'prepare-openmw-051-korean.ps1'
 $RuntimeBuilder = Join-Path $PSScriptRoot 'build-openmw-051-runtime.ps1'
-$GeneratedRoot = Join-Path $ProjectRoot 'build\korean-bitmap-fonts'
-$GeneratedFonts = Join-Path $GeneratedRoot 'fonts'
-$Manifest = Join-Path $GeneratedRoot 'korean_bitmap_font_manifest.json'
-$AssetFonts = Join-Path $ProjectRoot 'app\src\main\assets\libopenmw\resources\vfs\fonts'
 $OpenMwSource = Join-Path $ProjectRoot 'buildscripts\build\arm64\openmw-prefix\src\openmw'
 
-foreach ($Required in @($FontBuilder, $KoreanPrepare, $RuntimeBuilder)) {
+foreach ($Required in @($KoreanPrepare, $RuntimeBuilder)) {
     if (-not (Test-Path $Required)) {
         throw "Missing Korean OpenMW 0.51 build tool: $Required"
     }
-}
-
-$VanillaFontsDir = (Resolve-Path $VanillaFontsDir).Path
-$KoreanTtf = (Resolve-Path $KoreanTtf).Path
-
-$Python = Get-Command python -ErrorAction SilentlyContinue
-if ($null -eq $Python) {
-    throw 'Python 3 is required to build the Korean bitmap font atlas.'
-}
-
-& $Python.Source -c 'import PIL, fontTools'
-if ($LASTEXITCODE -ne 0) {
-    throw 'Python packages Pillow and fonttools are required. Install them for the build environment, then rerun.'
-}
-
-if (Test-Path $GeneratedRoot) {
-    Remove-Item $GeneratedRoot -Recurse -Force
-}
-
-Write-Host ''
-Write-Host 'Building complete Korean bitmap font set (Font 0/1/2 -> collision-free KR_* assets)...' -ForegroundColor Cyan
-& $Python.Source $FontBuilder `
-    --vanilla-fonts $VanillaFontsDir `
-    --ttf $KoreanTtf `
-    --output $GeneratedRoot `
-    --font-size $FontSize `
-    --overwrite
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-if (-not (Test-Path $Manifest)) {
-    throw "Korean font builder did not produce its manifest: $Manifest"
-}
-$ManifestData = Get-Content $Manifest -Raw | ConvertFrom-Json
-if ($ManifestData.format -ne 'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP' -or $ManifestData.render.hangul -ne 11172) {
-    throw "Korean font manifest validation failed: format=$($ManifestData.format), hangul=$($ManifestData.render.hangul)"
 }
 
 & $KoreanPrepare
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ''
-Write-Host 'Building OpenMW 0.51 Android runtime with Korean bitmap FontLoader support...' -ForegroundColor Cyan
+Write-Host 'Building OpenMW 0.51 Android runtime with Korean CP949-layout bitmap FontLoader support...' -ForegroundColor Cyan
 & $RuntimeBuilder -SkipPrepare -NoLto:$NoLto -Jobs $Jobs
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -79,14 +30,13 @@ if (-not (Test-Path $PatchedFontLoader)) {
     throw "Built OpenMW source tree is missing: $PatchedFontLoader"
 }
 $FontLoaderText = [IO.File]::ReadAllText($PatchedFontLoader)
-foreach ($Marker in @(
-    'OPENMW_ANDROID_051_KOREAN_CP949_BITMAP',
-    'OPENMW_ANDROID_051_KOREAN_FONT_ALIAS'
-)) {
-    if (-not $FontLoaderText.Contains($Marker)) {
-        throw "Built OpenMW source does not contain the Korean FontLoader marker: $Marker"
-    }
+if (-not $FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_CP949_BITMAP')) {
+    throw 'Built OpenMW source does not contain the Korean bitmap FontLoader marker.'
 }
+if ($FontLoaderText.Contains('OPENMW_ANDROID_051_KOREAN_FONT_ALIAS')) {
+    throw 'Stale KR_* APK font-alias patch is still present. Re-run the Korean prepare step from a clean OpenMW prefix.'
+}
+
 $GeneratedHeader = Join-Path $OpenMwSource 'components\fontloader\koreancp949bitmap.hpp'
 if (-not (Test-Path $GeneratedHeader)) {
     throw 'Korean CP949-to-Unicode generated mapping header is missing from the built OpenMW source.'
@@ -96,44 +46,13 @@ if (-not $HeaderText.Contains('std::array<Glyph, 11172>')) {
     throw 'Korean mapping header does not contain exactly 11,172 modern Hangul entries.'
 }
 
-New-Item -ItemType Directory -Force -Path $AssetFonts | Out-Null
-Get-ChildItem $AssetFonts -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -like 'KR_*.fnt' -or $_.Name -like 'KR_*.tex' } |
-    Remove-Item -Force
-Get-ChildItem $GeneratedFonts -File | ForEach-Object {
-    Copy-Item $_.FullName (Join-Path $AssetFonts $_.Name) -Force
-}
-Copy-Item $Manifest (Join-Path $AssetFonts 'korean_bitmap_font_manifest.json') -Force
-
-$ExpectedAssets = @(
-    'KR_magic_cards_regular.fnt',
-    'KR_magic_cards_regular.tex',
-    'KR_century_gothic_font_regular.fnt',
-    'KR_century_gothic_font_regular.tex',
-    'KR_daedric_font.fnt',
-    'KR_daedric_font.tex'
-)
-foreach ($Name in $ExpectedAssets) {
-    $Path = Join-Path $AssetFonts $Name
-    if (-not (Test-Path $Path) -or (Get-Item $Path).Length -le 0) {
-        throw "APK Korean font asset is missing/empty: $Path"
-    }
-}
-
-$KrAssets = @(Get-ChildItem $AssetFonts -File | Where-Object { $_.Name -like 'KR_*.fnt' -or $_.Name -like 'KR_*.tex' })
-if ($KrAssets.Count -ne 6) {
-    throw "Expected exactly six collision-free Korean FNT/TEX assets, found $($KrAssets.Count) in $AssetFonts"
-}
-
 Write-Host ''
-Write-Host 'OpenMW 0.51 Korean APK runtime payload: READY' -ForegroundColor Green
-Write-Host 'Engine: Unicode Hangul -> CP949-layout bitmap atlas mapping (11,172 syllables)'
-Write-Host 'Font 0: magic_cards_regular / MysticCards -> KR_magic_cards_regular'
-Write-Host 'Font 1: century_gothic_font_regular -> KR_century_gothic_font_regular'
-Write-Host 'Font 2: daedric_font / DemonicLetters -> KR_daedric_font'
-Write-Host "APK font assets: $AssetFonts"
-Write-Host 'KR_* names prevent the original Data Files/Fonts from overriding the APK font resources.'
-Write-Host 'No openmw.cfg/user.cfg font override is required.'
+Write-Host 'OpenMW 0.51 Korean Android runtime: READY' -ForegroundColor Green
+Write-Host 'Engine change only: Unicode Hangul -> CP949-layout FNT/TEX atlas mapping (11,172 syllables).'
+Write-Host 'No font binary is embedded in the APK.'
+Write-Host 'The Korean ReTranslation mod must provide its Fonts/ directory at higher VFS priority than Data Files.'
+Write-Host 'No openmw.cfg/user.cfg font override is required when the mod includes both OpenMW default and imported-INI FNT aliases.'
 Write-Host ''
 Write-Host 'Next APK step:'
+Write-Host '  cd ..'
 Write-Host '  .\gradlew.bat assembleDebug'
