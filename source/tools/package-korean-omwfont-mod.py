@@ -4,7 +4,7 @@
 Internal release/CI tool. It accepts an existing Korean translation release ZIP,
 finds the ReTranslation ESP regardless of the archive's outer directory layout,
 keeps the UTF-8 translation payload, drops legacy bitmap fonts, and adds the
-dedicated OpenMW TrueType font payload supplied by CI.
+validated MysticCards OpenMW TrueType font payload supplied by CI.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ CORE_SIDECARS = {
     "Morrowind_Korean_ReTranslation.top",
     "Morrowind_Korean_ReTranslation.cel",
 }
-TARGET_OMWFONT = FONT_PREFIX + "KR_OpenMW_Korean.omwfont"
+TARGET_OMWFONT = FONT_PREFIX + "MysticCards.omwfont"
 TARGET_TTF = FONT_PREFIX + "Galmuri11.ttf"
 TARGET_LICENSE = FONT_PREFIX + "Galmuri11-OFL-1.1.md"
 README_ENTRY = "README-ANDROID-KR-OMWFONT.txt"
@@ -33,13 +33,13 @@ EXPECTED_GALMURI11_SHA256 = "e24256f42e43713d2ea086a1e1669d78b968f5b3cc547e5c157
 
 README_TEXT = """Morrowind Korean ReTranslation - Android OpenMW package
 
-For the KR OpenMW Android build using:
-  fallback=Fonts_Font_0,KR_OpenMW_Korean
-  fallback=Fonts_Font_2,KR_OpenMW_Korean
+For the KR OpenMW Android build using the validated Korean font slot:
+  fallback=Fonts_Font_0,MysticCards
+  fallback=Fonts_Font_2,MysticCards
 
-Fonts/KR_OpenMW_Korean.omwfont uses Galmuri11.ttf through OpenMW's native
-TrueType path. Translation ESP/MRK/TOP/CEL/l10n data remains UTF-8; do not
-convert the translation payload to CP949.
+Fonts/MysticCards.omwfont uses Galmuri11.ttf through OpenMW's native TrueType
+path. Translation ESP/MRK/TOP/CEL/l10n data remains UTF-8; do not convert the
+translation payload to CP949.
 
 Galmuri11.ttf is redistributed under SIL Open Font License 1.1. The license
 text is included next to the font as Galmuri11-OFL-1.1.md.
@@ -111,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base-zip", required=True, type=Path,
                         help="Existing Korean translation release ZIP")
     parser.add_argument("--omwfont", required=True, type=Path,
-                        help="Dedicated KR_OpenMW_Korean.omwfont descriptor")
+                        help="Validated MysticCards.omwfont descriptor")
     parser.add_argument("--ttf", required=True, type=Path,
                         help="Pinned Galmuri11.ttf")
     parser.add_argument("--font-license", required=True, type=Path,
@@ -215,6 +215,7 @@ def main() -> int:
     print(f"  copied translation files: {copied}")
     print(f"  copied payload: {', '.join(copied_relatives)}")
     print(f"  Galmuri11.ttf SHA-256: {ttf_sha}")
+    print("  OpenMW font slot: MysticCards")
     print("  legacy FNT/TEX payload: none")
     print("  translation encoding: unchanged UTF-8 payload")
     return 0
