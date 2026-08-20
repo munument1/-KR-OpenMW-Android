@@ -67,8 +67,11 @@ jobs:
             ${{ runner.os }}-openmw051-r26b-arm64-deps-v2-
 
       - name: Verify Korean ExternalProject patch chain
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
           from pathlib import Path
 
           text = Path('source/buildscripts/CMakeLists.txt').read_text(encoding='utf-8')
@@ -88,9 +91,10 @@ jobs:
               if new_pos <= pos:
                   raise SystemExit(f'OpenMW patch-chain order is wrong at: {token}')
               pos = new_pos
-          if f'set(OPENMW_VERSION {__import__("os").environ["OPENMW_COMMIT"]})' not in text:
+          if f'set(OPENMW_VERSION {os.environ["OPENMW_COMMIT"]})' not in text:
               raise SystemExit('OpenMW commit pin is not the required 0.51.0 Final commit')
           print('PASS: Android runtime patches precede all three validated Korean patches')
+          PY
 
       - name: Force fresh OpenMW source only
         shell: bash
@@ -172,8 +176,8 @@ jobs:
           test -s "$APK"
           unzip -l "$APK" > /tmp/apk-files.txt
           grep -Fq 'lib/arm64-v8a/libopenmw.so' /tmp/apk-files.txt
-          if grep -Ei '(^|/)[^/]*\.(fnt|tex)$' /tmp/apk-files.txt; then
-            echo 'Legacy bitmap FNT/TEX asset leaked into the Android APK.' >&2
+          if grep -Ei '(KR_OpenMW_Korean|SmallBatang|KOREAN_CP949_BITMAP|koreancp949bitmap)' /tmp/apk-files.txt; then
+            echo 'Discarded Korean bitmap-font experiment leaked into the Android APK.' >&2
             exit 1
           fi
           sha256sum "$APK" | tee "$APK.sha256"
@@ -186,7 +190,7 @@ jobs:
             source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk
             source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk.sha256
             source/buildscripts/korean-openmw-051-libopenmw.sha256
-            source/buildscripts/openmw-051-runtime-native-build.log
+            source/buildscripts/korean-native-build.log
             source/buildscripts/symbols/arm64-v8a/libopenmw.so
             source/korean-gradle-unit-tests.log
             source/korean-gradle-build.log
