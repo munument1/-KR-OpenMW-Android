@@ -458,6 +458,7 @@ tasks.register('verifyOpenMwPayload') {
         def debugVert = file('src/main/assets/libopenmw/resources/shaders/compatibility/debug.vert').getText('UTF-8')
         def debugFrag = file('src/main/assets/libopenmw/resources/shaders/compatibility/debug.frag').getText('UTF-8')
         def shadowFragmentShader = file('src/main/assets/libopenmw/resources/shaders/compatibility/shadows_fragment.glsl').getText('UTF-8')
+        def objectsFragmentShader = file('src/main/assets/libopenmw/resources/shaders/compatibility/objects.frag').getText('UTF-8')
 
         if (fullscreenShader.contains('uniform vec2 scaling =') ||
                 shadowShader.contains('uniform bool useDiffuseMapForShadowAlpha =') ||
@@ -467,6 +468,15 @@ tasks.register('verifyOpenMwPayload') {
             throw new GradleException(
                     'OpenMW 0.51 runtime gate is missing the minimal Android/GL4ES uniform-initializer patch.\n' +
                     'Re-run tools\\build-openmw-051-runtime.ps1.'
+            )
+        }
+
+        if (!objectsFragmentShader.contains('OPENMW_ANDROID_051_GL4ES_EXPLICIT_OBJECT_FOG') ||
+                !objectsFragmentShader.contains('OPENMW_ANDROID_051_LOCALMAP_OBJECT_FOG_BYPASS_V1') ||
+                !objectsFragmentShader.contains('OPENMW_ANDROID_051_GL4ES_DISABLE_ADDITIVE_FOG') ||
+                !objectsFragmentShader.contains('vec3 viewNormal = normalToView(normalize(passNormal));')) {
+            throw new GradleException(
+                    'OpenMW 0.51 runtime gate is missing the Android object-fog/LocalMap compatibility shader.'
             )
         }
 

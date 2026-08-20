@@ -145,7 +145,7 @@ jobs:
           find . -type f -name '*.sh' -exec chmod +x {} +
           ./build.sh --arch arm64 --jobs 2 2>&1 | tee korean-native-build.log
 
-      - name: Restore pinned OpenMW Android projective water shaders
+      - name: Restore pinned OpenMW Android compatibility shaders
         shell: bash
         run: |
           set -euo pipefail
@@ -155,14 +155,21 @@ jobs:
 
           test "$(sha256sum "$apk" | awk '{print $1}')" = "$UPSTREAM_ANDROID_APK_SHA256"
           unzip -qo "$apk" \
+            'assets/libopenmw/resources/shaders/compatibility/objects.frag' \
             'assets/libopenmw/resources/shaders/compatibility/water.vert' \
             'assets/libopenmw/resources/shaders/compatibility/water.frag' \
             -d "$extracted"
+          install -m 0644 "$extracted/assets/libopenmw/resources/shaders/compatibility/objects.frag" \
+            "$destination/objects.frag"
           install -m 0644 "$extracted/assets/libopenmw/resources/shaders/compatibility/water.vert" \
             "$destination/water.vert"
           install -m 0644 "$extracted/assets/libopenmw/resources/shaders/compatibility/water.frag" \
             "$destination/water.frag"
 
+          grep -Fq 'OPENMW_ANDROID_051_GL4ES_EXPLICIT_OBJECT_FOG' "$destination/objects.frag"
+          grep -Fq 'OPENMW_ANDROID_051_LOCALMAP_OBJECT_FOG_BYPASS_V1' "$destination/objects.frag"
+          grep -Fq 'OPENMW_ANDROID_051_GL4ES_DISABLE_ADDITIVE_FOG' "$destination/objects.frag"
+          grep -Fq 'vec3 viewNormal = normalToView(normalize(passNormal));' "$destination/objects.frag"
           grep -Fq 'OPENMW_ANDROID_051_WATER_PROJECTIVE_SCREEN_COORDS' "$destination/water.vert"
           grep -Fq 'screenPosition = gl_Position;' "$destination/water.vert"
           grep -Fq 'OPENMW_ANDROID_051_WATER_PROJECTIVE_SCREEN_COORDS' "$destination/water.frag"
@@ -175,7 +182,7 @@ jobs:
             echo 'Pinned water.frag still uses resolution-dependent reflection UVs.' >&2
             exit 1
           fi
-          echo 'Restored the release-verified projective water shaders from pinned upstream 0.51.0-04.'
+          echo 'Restored the release-verified object-fog and projective-water shaders from pinned upstream 0.51.0-04.'
 
       - name: Verify exact Korean source produced native payload
         shell: bash
@@ -253,6 +260,8 @@ jobs:
           test -s "$APK"
           unzip -l "$APK" > /tmp/apk-files.txt
           grep -Fq 'lib/arm64-v8a/libopenmw.so' /tmp/apk-files.txt
+          unzip -p "$APK" assets/libopenmw/resources/shaders/compatibility/objects.frag \
+            | grep -Fq 'OPENMW_ANDROID_051_LOCALMAP_OBJECT_FOG_BYPASS_V1'
           if grep -Ei '(KR_OpenMW_Korean|SmallBatang|KOREAN_CP949_BITMAP|koreancp949bitmap)' /tmp/apk-files.txt; then
             echo 'Discarded Korean bitmap-font experiment leaked into the Android APK.' >&2
             exit 1
