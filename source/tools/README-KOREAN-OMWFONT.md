@@ -15,9 +15,15 @@ fallback=Fonts_Font_2,KR_OpenMW_Korean
 
 OpenMW uses Font 0 for the normal UI and Font 2 for scroll text. Font 1 is not needed for this integration.
 
-## Mod-side behavior
+## Installable mod package
 
-The active ReTranslation data directory supplies:
+Users do not need to run the packaging script manually. GitHub Actions builds a ready-to-install artifact named:
+
+```text
+Morrowind_Korean_ReTranslation_Android_OMWFont
+```
+
+The ZIP contains:
 
 ```text
 mods/Morrowind_Korean_ReTranslation/
@@ -26,35 +32,27 @@ mods/Morrowind_Korean_ReTranslation/
   Fonts/
     KR_OpenMW_Korean.omwfont
     Galmuri11.ttf
+    Galmuri11-OFL-1.1.md
 ```
 
-No new `.omwfont` descriptor is authored for Android. The packager reuses the existing Korean OpenMW descriptor already shipped in KR1:
+The package workflow:
 
-```text
-OpenMW/resources/vfs/fonts/MysticCards.omwfont
-```
+1. finds the newest usable `Morrowind_Korean_ReTranslation` release ZIP from `munument1/OpenMW-korean`;
+2. keeps the translation payload unchanged and normalizes the active mod directory name;
+3. removes legacy `.fnt/.tex` font payload from the Android package;
+4. downloads Galmuri v2.40.4 from the official `quiple/galmuri` release;
+5. verifies `Galmuri11.ttf` SHA-256 is exactly `e24256f42e43713d2ea086a1e1669d78b968f5b3cc547e5c157f0606ffa5def1`;
+6. includes the official SIL Open Font License 1.1 text;
+7. adds `KR_OpenMW_Korean.omwfont`, which is the existing KR1 Korean OpenMW descriptor under a collision-free basename;
+8. uploads the finished ZIP plus `SHA256SUMS.txt` as a GitHub Actions artifact.
 
-and copies its bytes verbatim to:
+The pinned Galmuri version matches the `Galmuri11.ttf` already used by the current KR1 package (font version 2.404).
 
-```text
-mods/Morrowind_Korean_ReTranslation/Fonts/KR_OpenMW_Korean.omwfont
-```
+Translation ESP/MRK/TOP/CEL/l10n data stays UTF-8. It must not be converted to CP949.
 
-The descriptor continues to reference the existing `Galmuri11.ttf`, which is also copied verbatim from KR1. Only the descriptor filename/basename changes. Using the unique basename prevents a legacy `MysticCards.fnt` or other same-name bitmap font from winning OpenMW's `.fnt`-before-`.omwfont` lookup.
+## Internal packager
 
-Translation ESP/MRK/TOP/CEL/l10n data stays UTF-8.
-
-## Package the Android test mod
-
-Use an existing KR1 Full ZIP as input. The packager reuses both `MysticCards.omwfont` and `Galmuri11.ttf` already inside that ZIP; it does not download, regenerate, or embed a new font descriptor in this repository.
-
-```powershell
-python source\tools\package-korean-omwfont-mod.py `
-  --base-zip "Morrowind-Korean-OpenMW-0.51.0-KR1-Full.zip" `
-  --output "Morrowind_Korean_ReTranslation_Android_OMWFont.zip"
-```
-
-The packager validates that the existing descriptor still points to `Galmuri11.ttf`, exposes the expected `33 65535` code range, and is byte-identical after packaging.
+`source/tools/package-korean-omwfont-mod.py` is an internal CI/release tool, not an end-user installation step. It accepts an existing translation release ZIP plus the validated descriptor/font/license inputs and builds the final Android mod ZIP.
 
 ## APK build
 
@@ -77,7 +75,7 @@ If the checkout does not already contain the final Patch-41 generated assets/JNI
 ## Device test order
 
 1. Install the rebuilt APK.
-2. Enable the packaged `Morrowind_Korean_ReTranslation` data directory after base `Data Files`.
+2. Extract/enable the packaged `Morrowind_Korean_ReTranslation` data directory after base `Data Files`.
 3. Start with no manual `openmw.cfg` / `user.cfg` font edits.
 4. Check main menu/settings, inventory/tooltips, NPC dialogue/topics, journal/books and save/load.
 5. In generated `openmw.cfg`, confirm the active entries are `KR_OpenMW_Korean` and no imported `Fonts_Font_0,magic_cards_regular` remains.
