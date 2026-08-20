@@ -145,6 +145,39 @@ jobs:
           find . -type f -name '*.sh' -exec chmod +x {} +
           ./build.sh --arch arm64 --jobs 2 2>&1 | tee korean-native-build.log
 
+      - name: Restore pinned OpenMW Android support libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="work/upstream-apk/$UPSTREAM_ANDROID_APK"
+          extracted='work/upstream-apk/extracted'
+          destination='source/app/src/main/jniLibs/arm64-v8a'
+
+          test "$(sha256sum "$apk" | awk '{print $1}')" = "$UPSTREAM_ANDROID_APK_SHA256"
+          test -s "$destination/libopenmw.so"
+          korean_openmw_sha_before="$(sha256sum "$destination/libopenmw.so" | awk '{print $1}')"
+
+          declare -A expected_sha=(
+            [libcollada-dom2.5-dp.so]='2aceb0df4c2d77de8c388ead442575cfc77438e604deeacccb8feffcbe42ab1a'
+            [libGL.so]='ae04ce9bb4aab8cb1709fbdb3d4d91620e581085af6434f371991a1ce4b7d87b'
+            [libopenal.so]='fd14e803ab92578db87c8b975313b5d463b736a45934a841845bb7bfa9b7bc02'
+            [libSDL2.so]='92853d91fd8454eaa35691fc5a7bc2cfbc3c5f889aaad8fda2573862d4ccd49a'
+          )
+
+          for library in "${!expected_sha[@]}"; do
+            unzip -qo "$apk" "lib/arm64-v8a/$library" -d "$extracted"
+            source_file="$extracted/lib/arm64-v8a/$library"
+            actual="$(sha256sum "$source_file" | awk '{print $1}')"
+            if [ "$actual" != "${expected_sha[$library]}" ]; then
+              echo "Pinned upstream $library SHA-256 mismatch: $actual" >&2
+              exit 1
+            fi
+            install -m 0644 "$source_file" "$destination/$library"
+          done
+
+          test "$(sha256sum "$destination/libopenmw.so" | awk '{print $1}')" = "$korean_openmw_sha_before"
+          echo 'Restored the release-verified SDL2, GL4ES, OpenAL, and Collada libraries without replacing Korean libopenmw.so.'
+
       - name: Restore pinned OpenMW Android compatibility shaders
         shell: bash
         run: |
@@ -262,6 +295,18 @@ jobs:
           grep -Fq 'lib/arm64-v8a/libopenmw.so' /tmp/apk-files.txt
           unzip -p "$APK" assets/libopenmw/resources/shaders/compatibility/objects.frag \
             | grep -Fq 'OPENMW_ANDROID_051_LOCALMAP_OBJECT_FOG_BYPASS_V1'
+          while read -r expected library; do
+            actual="$(unzip -p "$APK" "lib/arm64-v8a/$library" | sha256sum | awk '{print $1}')"
+            if [ "$actual" != "$expected" ]; then
+              echo "APK $library is not the pinned upstream 0.51.0-04 binary: $actual" >&2
+              exit 1
+            fi
+          done <<'EOF'
+          2aceb0df4c2d77de8c388ead442575cfc77438e604deeacccb8feffcbe42ab1a libcollada-dom2.5-dp.so
+          ae04ce9bb4aab8cb1709fbdb3d4d91620e581085af6434f371991a1ce4b7d87b libGL.so
+          fd14e803ab92578db87c8b975313b5d463b736a45934a841845bb7bfa9b7bc02 libopenal.so
+          92853d91fd8454eaa35691fc5a7bc2cfbc3c5f889aaad8fda2573862d4ccd49a libSDL2.so
+          EOF
           if grep -Ei '(KR_OpenMW_Korean|SmallBatang|KOREAN_CP949_BITMAP|koreancp949bitmap)' /tmp/apk-files.txt; then
             echo 'Discarded Korean bitmap-font experiment leaked into the Android APK.' >&2
             exit 1
