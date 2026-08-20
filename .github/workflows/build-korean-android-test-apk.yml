@@ -145,6 +145,38 @@ jobs:
           find . -type f -name '*.sh' -exec chmod +x {} +
           ./build.sh --arch arm64 --jobs 2 2>&1 | tee korean-native-build.log
 
+      - name: Restore pinned OpenMW Android projective water shaders
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="work/upstream-apk/$UPSTREAM_ANDROID_APK"
+          extracted='work/upstream-apk/extracted'
+          destination='source/app/src/main/assets/libopenmw/resources/shaders/compatibility'
+
+          test "$(sha256sum "$apk" | awk '{print $1}')" = "$UPSTREAM_ANDROID_APK_SHA256"
+          unzip -qo "$apk" \
+            'assets/libopenmw/resources/shaders/compatibility/water.vert' \
+            'assets/libopenmw/resources/shaders/compatibility/water.frag' \
+            -d "$extracted"
+          install -m 0644 "$extracted/assets/libopenmw/resources/shaders/compatibility/water.vert" \
+            "$destination/water.vert"
+          install -m 0644 "$extracted/assets/libopenmw/resources/shaders/compatibility/water.frag" \
+            "$destination/water.frag"
+
+          grep -Fq 'OPENMW_ANDROID_051_WATER_PROJECTIVE_SCREEN_COORDS' "$destination/water.vert"
+          grep -Fq 'screenPosition = gl_Position;' "$destination/water.vert"
+          grep -Fq 'OPENMW_ANDROID_051_WATER_PROJECTIVE_SCREEN_COORDS' "$destination/water.frag"
+          grep -Fq '(screenPosition.xy / screenPosition.w) * 0.5 + 0.5' "$destination/water.frag"
+          grep -Fq 'OPENMW_ANDROID_051_WETWORLD_WATER_MASK' "$destination/water.frag"
+          grep -Fq '#if @wetWorldWaterMask' "$destination/water.frag"
+          grep -Fq 'gl_FragData[0].a = 0.0;' "$destination/water.frag"
+          grep -Fq 'rainCombined(position.xy/1000.0, waterTimer)' "$destination/water.frag"
+          if grep -Fq 'gl_FragCoord.xy / screenRes' "$destination/water.frag"; then
+            echo 'Pinned water.frag still uses resolution-dependent reflection UVs.' >&2
+            exit 1
+          fi
+          echo 'Restored the release-verified projective water shaders from pinned upstream 0.51.0-04.'
+
       - name: Verify exact Korean source produced native payload
         shell: bash
         run: |
