@@ -8,7 +8,7 @@ on:
       - ".github/workflows/report-korean-build-runs.yml"
 
 permissions:
-  actions: read
+  actions: write
   contents: read
   pull-requests: write
   issues: write
@@ -17,6 +17,22 @@ jobs:
   report:
     runs-on: ubuntu-latest
     steps:
+      - name: Cancel superseded Korean APK run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          old_run=32333300294
+          state="$(gh api "repos/${repo}/actions/runs/${old_run}" --jq '.status')"
+          if [ "$state" = "queued" ] || [ "$state" = "in_progress" ]; then
+            gh api -X POST "repos/${repo}/actions/runs/${old_run}/cancel"
+            echo "Cancelled superseded run ${old_run}."
+          else
+            echo "Superseded run ${old_run} is already ${state}; no cancellation needed."
+          fi
+
       - name: Report recent branch runs to Draft PR 2
         shell: bash
         env:
