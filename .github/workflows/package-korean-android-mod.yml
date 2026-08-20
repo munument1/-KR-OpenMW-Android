@@ -1,0 +1,112 @@
+name: Package Korean Android mod
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "source/app/openmw.base.cfg"
+      - "source/app/src/main/java/file/IniConverter.kt"
+      - "source/app/src/test/java/file/IniConverterTest.kt"
+      - "source/tools/package-korean-omwfont-mod.py"
+      - "source/tools/assets/KR_OpenMW_Korean.omwfont"
+      - ".github/workflows/package-korean-android-mod.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      TRANSLATION_REPO: munument1/OpenMW-korean
+      GALMURI_REPO: quiple/galmuri
+      GALMURI_TAG: v2.40.4
+      GALMURI_SHA256: e24256f42e43713d2ea086a1e1669d78b968f5b3cc547e5c157f0606ffa5def1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Locate latest usable ReTranslation release asset
+        id: translation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/base
+          : > work/release-candidates.txt
+
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            gh release view "$tag" --repo "$TRANSLATION_REPO" --json assets \
+              --jq '.assets[].name' | while IFS= read -r asset; do
+                case "$asset" in
+                  Morrowind-Korean-OpenMW-*-Full.zip|Morrowind_Korean_ReTranslation*.zip)
+                    printf '%s\t%s\n' "$tag" "$asset" >> work/release-candidates.txt
+                    ;;
+                esac
+              done
+          done < <(gh release list --repo "$TRANSLATION_REPO" --limit 50 --json tagName --jq '.[].tagName')
+
+          if [ ! -s work/release-candidates.txt ]; then
+            echo "No usable ReTranslation ZIP asset found in $TRANSLATION_REPO releases" >&2
+            exit 1
+          fi
+
+          IFS=$'\t' read -r tag asset < work/release-candidates.txt
+          echo "Using translation release: $tag / $asset"
+          gh release download "$tag" --repo "$TRANSLATION_REPO" --pattern "$asset" --dir work/base
+
+          base_zip="work/base/$asset"
+          test -f "$base_zip"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "base_zip=$base_zip" >> "$GITHUB_OUTPUT"
+          sha256sum "$base_zip"
+
+      - name: Download pinned Galmuri 2.40.4
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/galmuri
+          gh release download "$GALMURI_TAG" --repo "$GALMURI_REPO" \
+            --pattern "Galmuri-${GALMURI_TAG}.zip" --dir work/galmuri
+          unzip -q "work/galmuri/Galmuri-${GALMURI_TAG}.zip" -d work/galmuri/dist
+
+          test -f work/galmuri/dist/Galmuri11.ttf
+          actual="$(sha256sum work/galmuri/dist/Galmuri11.ttf | awk '{print $1}')"
+          echo "Galmuri11.ttf SHA-256: $actual"
+          test "$actual" = "$GALMURI_SHA256"
+
+          gh api "repos/${GALMURI_REPO}/contents/ofl.md?ref=${GALMURI_TAG}" \
+            --jq '.content' | tr -d '\n' | base64 -d > work/galmuri/Galmuri11-OFL-1.1.md
+          grep -qi "SIL OPEN FONT LICENSE" work/galmuri/Galmuri11-OFL-1.1.md
+          grep -qi "Version 1.1" work/galmuri/Galmuri11-OFL-1.1.md
+
+      - name: Assemble Android ReTranslation package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 source/tools/package-korean-omwfont-mod.py \
+            --base-zip "${{ steps.translation.outputs.base_zip }}" \
+            --omwfont source/tools/assets/KR_OpenMW_Korean.omwfont \
+            --ttf work/galmuri/dist/Galmuri11.ttf \
+            --font-license work/galmuri/Galmuri11-OFL-1.1.md \
+            --output out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
+
+          unzip -l out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
+          sha256sum out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip | tee out/SHA256SUMS.txt
+
+      - name: Upload installable Korean mod
+        uses: actions/upload-artifact@v4
+        with:
+          name: Morrowind_Korean_ReTranslation_Android_OMWFont
+          path: |
+            out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
+            out/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
