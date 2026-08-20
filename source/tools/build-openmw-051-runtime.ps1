@@ -51,7 +51,7 @@ if [ "$(printf '%s\n' 3.16 "$CMAKE_VERSION" | sort -V | head -n1)" != "3.16" ]; 
 fi
 
 echo "CMake $CMAKE_VERSION OK"
-echo "OpenMW 0.51 Patch 3: GL4ES core/vfs-mw runtime payload"
+echo "OpenMW 0.51 Android + Korean runtime payload"
 echo "Shadows/post-processing/OMWFX remain runtime-disabled for this gate"
 echo "Dependency versions intentionally remain unchanged"
 
@@ -67,7 +67,7 @@ set -e
 if [ "$BUILD_RC" -ne 0 ]; then
     echo
     echo "============================================================"
-    echo "OpenMW 0.51 Patch 3 runtime build FAILED (exit $BUILD_RC)"
+    echo "OpenMW 0.51 Android + Korean runtime build FAILED (exit $BUILD_RC)"
     echo "Full log: $BUILD_LOG"
     echo "Likely root-cause lines:"
     echo "============================================================"
@@ -89,17 +89,37 @@ if [ ! -f "$SOURCE/CMakeLists.txt" ] || ! grep -Eq 'set\(OPENMW_VERSION_MINOR[[:
     exit 21
 fi
 if ! grep -Fq 'OPENMW_ANDROID_051_RUNTIME_BASELINE' "$SOURCE/apps/openmw/androidmain.cpp"; then
-    echo "ERROR: Patch 3 Android runtime bridge is missing from the built source." >&2
+    echo "ERROR: Android runtime bridge is missing from the built source." >&2
     exit 22
 fi
 if ! grep -Fq 'OPENMW_ANDROID_051_LOADINGSCREEN_NO_FB_COPY' "$SOURCE/apps/openmw/mwgui/loadingscreen.cpp"; then
-    echo "ERROR: Patch 3 Android loading-screen workaround is missing from the built source." >&2
+    echo "ERROR: Android loading-screen workaround is missing from the built source." >&2
     exit 23
 fi
 if ! grep -Fq 'OPENMW_ANDROID_051_GL4ES_CORE_INLINE' "$SOURCE/files/shaders/lib/core/vertex.h.glsl" \
     || ! grep -Fq 'OPENMW_ANDROID_051_GL4ES_CORE_INLINE' "$SOURCE/files/shaders/lib/core/fragment.h.glsl"; then
-    echo "ERROR: Patch 3 GL4ES core shader inlining is missing from the built source." >&2
+    echo "ERROR: GL4ES core shader inlining is missing from the built source." >&2
     exit 24
+fi
+
+# A native build is not valid for the Korean APK unless all validated Korean
+# runtime patches are present in the exact OpenMW source that produced libopenmw.so.
+if ! grep -Fq 'parseHyperText(text, mTranslationDataStorage, true)' \
+    "$SOURCE/apps/openmw/mwdialogue/dialoguemanagerimp.cpp" \
+    || ! grep -Fq 'static_cast<unsigned char>(*i) < 0xe0' \
+    "$SOURCE/apps/openmw/mwdialogue/keywordsearch.cpp"; then
+    echo "ERROR: Korean CJK topic-discovery patch is missing from the built source." >&2
+    exit 34
+fi
+if ! grep -Fq 'std::ios::binary' "$SOURCE/components/translation/translation.cpp" \
+    || ! grep -Fq 'utf8BomMode ? std::string_view(line)' "$SOURCE/components/translation/translation.cpp"; then
+    echo "ERROR: Korean UTF-8 BOM sidecar patch is missing from the built source." >&2
+    exit 35
+fi
+if ! grep -Fq 'bool isValidUtf8WithHangul(std::string_view input)' "$SOURCE/components/esm3/esmreader.cpp" \
+    || ! grep -Fq 'if (isValidUtf8WithHangul(raw))' "$SOURCE/components/esm3/esmreader.cpp"; then
+    echo "ERROR: Korean mixed UTF-8 Hangul ESM reader patch is missing from the built source." >&2
+    exit 36
 fi
 
 for item in \
@@ -204,13 +224,14 @@ JNI_SHA=$(sha256sum "$JNI" | awk '{print $1}')
 SYMBOL_SHA=$(sha256sum "$SYMBOLS" | awk '{print $1}')
 printf '%s  %s\n' "$JNI_SHA" "$JNI" > "$PWD/openmw-051-runtime-libopenmw.sha256"
 
-printf '\nOpenMW 0.51 Patch 3 runtime payload: SUCCESS\n'
+printf '\nOpenMW 0.51 Android + Korean runtime payload: SUCCESS\n'
 printf 'Packaged/stripped lib: %s (%s bytes)\n' "$JNI" "$JNI_SIZE"
 printf 'Symbol/unstripped lib: %s (%s bytes)\n' "$SYMBOLS" "$SYMBOL_SIZE"
 printf 'Packaged SHA-256: %s\n' "$JNI_SHA"
 printf 'Symbol SHA-256:   %s\n' "$SYMBOL_SHA"
 printf 'Resources:       %s\n' "$(cat "$ASSETS/resources/version")"
 printf 'Engine marker:   OpenMW 0.51.0 Final / f4bec41444214a7903bebd178389ca22ca13f646\n'
+printf 'Korean runtime:  CJK topics + BOM sidecars + mixed UTF-8 Hangul ESM verified in built source\n'
 printf 'Next: assemble/install APK; runtime gate keeps Shadows=OFF and Post Processing=OFF.\n'
 '@
 
@@ -221,8 +242,8 @@ $ShellScript = $ShellScript -replace "`r`n", "`n"
 [IO.File]::WriteAllText($WindowsBuildScript, $ShellScript, [Text.UTF8Encoding]::new($false))
 
 Write-Host ''
-Write-Host 'Building OpenMW 0.51.0 Final Patch 3 runtime payload for arm64-v8a...' -ForegroundColor Cyan
-Write-Host "This rebuild uses Patch 3 and limits native parallelism to $Jobs job(s)." -ForegroundColor Yellow
+Write-Host 'Building OpenMW 0.51.0 Final Android + Korean runtime payload for arm64-v8a...' -ForegroundColor Cyan
+Write-Host "This rebuild limits native parallelism to $Jobs job(s)." -ForegroundColor Yellow
 Write-Host 'The large unstripped binary will be kept separately under buildscripts\symbols\arm64-v8a.' -ForegroundColor DarkGray
 
 try {
@@ -239,28 +260,29 @@ $Marker = Join-Path $ProjectRoot 'app\src\main\assets\libopenmw\openmw\openmw-en
 $ResourceVersion = Join-Path $ProjectRoot 'app\src\main\assets\libopenmw\resources\version'
 
 foreach ($Required in @($JniLib, $SymbolLib, $Marker, $ResourceVersion)) {
-    if (-not (Test-Path $Required)) { throw "Patch 2 output verification failed: missing $Required" }
+    if (-not (Test-Path $Required)) { throw "Runtime output verification failed: missing $Required" }
 }
 
 $ExpectedMarker = "OpenMW 0.51.0 Final`ncommit=$FinalCommit`n"
 $ActualMarker = [IO.File]::ReadAllText($Marker).Replace("`r`n", "`n")
 if ($ActualMarker -ne $ExpectedMarker) {
-    throw "Patch 2 Windows-side engine marker mismatch: $($ActualMarker -replace "`n", ' | ')"
+    throw "Windows-side engine marker mismatch: $($ActualMarker -replace "`n", ' | ')"
 }
 if (-not ([IO.File]::ReadAllText($ResourceVersion).Trim().StartsWith('0.51.0'))) {
-    throw 'Patch 2 Windows-side resources/version is not OpenMW 0.51.0.'
+    throw 'Windows-side resources/version is not OpenMW 0.51.0.'
 }
 
 $JniSize = (Get-Item $JniLib).Length
 $SymbolSize = (Get-Item $SymbolLib).Length
 if ($JniSize -ge $SymbolSize) {
-    throw "Patch 2 strip verification failed: packaged=$JniSize symbol=$SymbolSize"
+    throw "Strip verification failed: packaged=$JniSize symbol=$SymbolSize"
 }
 
 Write-Host ''
-Write-Host 'OpenMW 0.51 Patch 3 runtime payload is ready for Android Studio / Gradle.' -ForegroundColor Green
+Write-Host 'OpenMW 0.51 Android + Korean runtime payload is ready for Android Studio / Gradle.' -ForegroundColor Green
 Write-Host "Packaged libopenmw.so: $JniLib ($JniSize bytes)"
 Write-Host "Unstripped symbols:    $SymbolLib ($SymbolSize bytes)"
 Write-Host "Packaged SHA-256:      $((Get-FileHash $JniLib -Algorithm SHA256).Hash.ToLowerInvariant())"
 Write-Host 'Expected first native log line on device: OpenMW version 0.51.0'
+Write-Host 'Korean source markers: CJK topics / BOM sidecars / mixed UTF-8 Hangul ESM required.'
 Write-Host 'Runtime gate: Shadows OFF, Post Processing OFF, OMWFX not installed into the OpenMW VFS.'
