@@ -1,0 +1,80 @@
+name: Korean OpenMW 0.51 runtime guard
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "source/buildscripts/patches/openmw051-final/0003-korean-cjk-topic-discovery.patch"
+      - "source/buildscripts/patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch"
+      - "source/buildscripts/patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch"
+      - "source/tools/prepare-openmw-051-runtime.ps1"
+      - ".github/workflows/korean-runtime-051-guard.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-korean-runtime:
+    runs-on: ubuntu-latest
+    env:
+      OPENMW_COMMIT: f4bec41444214a7903bebd178389ca22ca13f646
+      PATCH_DIR: source/buildscripts/patches/openmw051-final
+    steps:
+      - name: Checkout Android fork
+        uses: actions/checkout@v4
+
+      - name: Download exact OpenMW 0.51 Final source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 \
+            "https://github.com/OpenMW/openmw/archive/${OPENMW_COMMIT}.tar.gz" \
+            -o openmw-051.tar.gz
+          mkdir openmw-051
+          tar -xzf openmw-051.tar.gz --strip-components=1 -C openmw-051
+          grep -F "set(OPENMW_VERSION_MINOR 51)" openmw-051/CMakeLists.txt
+
+      - name: Apply validated Korean runtime patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          for patch_file in \
+            "$PATCH_DIR/0003-korean-cjk-topic-discovery.patch" \
+            "$PATCH_DIR/0004-korean-utf8-bom-sidecars.patch" \
+            "$PATCH_DIR/0005-korean-mixed-utf8-esm-reader.patch"; do
+            echo "Applying $patch_file"
+            patch -d openmw-051 -p1 --forward --batch < "$patch_file"
+          done
+
+      - name: Verify Korean runtime invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'parseHyperText(text, mTranslationDataStorage, true)' \
+            openmw-051/apps/openmw/mwdialogue/dialoguemanagerimp.cpp
+          grep -F 'bool overlaps = false' \
+            openmw-051/apps/openmw/mwdialogue/keywordsearch.hpp
+          grep -F 'static_cast<unsigned char>(*i) < 0xe0' \
+            openmw-051/apps/openmw/mwdialogue/keywordsearch.cpp
+          grep -F 'std::ios::binary' \
+            openmw-051/components/translation/translation.cpp
+          grep -F 'utf8BomMode ? std::string_view(line)' \
+            openmw-051/components/translation/translation.cpp
+          grep -F 'bool isValidUtf8WithHangul(std::string_view input)' \
+            openmw-051/components/esm3/esmreader.cpp
+          grep -F 'if (isValidUtf8WithHangul(raw))' \
+            openmw-051/components/esm3/esmreader.cpp
+          grep -F 'mEncoder->getUtf8(raw)' \
+            openmw-051/components/esm3/esmreader.cpp
+
+      - name: Verify prepare wrapper schedules all Korean patches
+        shell: pwsh
+        run: |
+          $text = [IO.File]::ReadAllText('source/tools/prepare-openmw-051-runtime.ps1')
+          foreach ($name in @(
+            '0003-korean-cjk-topic-discovery.patch',
+            '0004-korean-utf8-bom-sidecars.patch',
+            '0005-korean-mixed-utf8-esm-reader.patch'
+          )) {
+            if (-not $text.Contains($name)) { throw "prepare wrapper is missing $name" }
+          }
