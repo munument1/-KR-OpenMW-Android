@@ -28,19 +28,33 @@ mods/Morrowind_Korean_ReTranslation/
     Galmuri11.ttf
 ```
 
-The `.omwfont` basename is deliberately unique, so OpenMW will not collide with vanilla `magic_cards_regular.fnt` / `daedric_font.fnt`.
+No new `.omwfont` descriptor is authored for Android. The packager takes the existing KR1 file:
+
+```text
+OpenMW/resources/vfs/fonts/MysticCards.omwfont
+```
+
+and copies its bytes verbatim to:
+
+```text
+mods/Morrowind_Korean_ReTranslation/Fonts/KR_OpenMW_Korean.omwfont
+```
+
+The descriptor continues to reference the existing `Galmuri11.ttf`, which is also copied verbatim from KR1. Only the descriptor filename/basename changes. Using the unique basename prevents a legacy `MysticCards.fnt` or other same-name bitmap font from winning OpenMW's `.fnt`-before-`.omwfont` lookup.
 
 Translation ESP/MRK/TOP/CEL/l10n data stays UTF-8.
 
 ## Package the Android test mod
 
-Use an existing KR1 Full ZIP as input. The packager reuses the Galmuri TTF already inside that ZIP; it does not download or embed a font in this repository.
+Use an existing KR1 Full ZIP as input. The packager reuses both `MysticCards.omwfont` and `Galmuri11.ttf` already inside that ZIP; it does not download or embed a new font in this repository.
 
 ```powershell
 python source\tools\package-korean-omwfont-mod.py `
   --base-zip "Morrowind-Korean-OpenMW-0.51.0-KR1-Full.zip" `
   --output "Morrowind_Korean_ReTranslation_Android_OMWFont.zip"
 ```
+
+The packager validates that the existing descriptor still points to `Galmuri11.ttf`, exposes the expected `33 65535` code range, and is byte-identical after packaging.
 
 ## APK build
 
