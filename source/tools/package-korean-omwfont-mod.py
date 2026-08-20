@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Assemble the Android OpenMW Korean translation mod.
 
-This is an internal release/CI tool. It takes an existing Korean translation
-release ZIP, strips any legacy Fonts payload, normalizes the active mod folder,
-and adds the dedicated OpenMW TrueType font payload supplied by CI.
+Internal release/CI tool. It accepts an existing Korean translation release ZIP,
+finds the ReTranslation ESP regardless of the archive's outer directory layout,
+keeps the UTF-8 translation payload, drops legacy bitmap fonts, and adds the
+dedicated OpenMW TrueType font payload supplied by CI.
 """
 
 from __future__ import annotations
@@ -18,6 +19,12 @@ from pathlib import Path, PurePosixPath
 TARGET_PREFIX = "mods/Morrowind_Korean_ReTranslation/"
 FONT_PREFIX = TARGET_PREFIX + "Fonts/"
 ESP_NAME = "Morrowind_Korean_ReTranslation.esp"
+CORE_SIDECARS = {
+    "Morrowind_Korean_ReTranslation.esp",
+    "Morrowind_Korean_ReTranslation.mrk",
+    "Morrowind_Korean_ReTranslation.top",
+    "Morrowind_Korean_ReTranslation.cel",
+}
 TARGET_OMWFONT = FONT_PREFIX + "KR_OpenMW_Korean.omwfont"
 TARGET_TTF = FONT_PREFIX + "Galmuri11.ttf"
 TARGET_LICENSE = FONT_PREFIX + "Galmuri11-OFL-1.1.md"
@@ -65,21 +72,38 @@ def validate_descriptor(data: bytes) -> None:
 def find_mod_prefix(names: list[str]) -> str:
     candidates: set[str] = set()
     for name in names:
+        if name.endswith("/"):
+            continue
         p = PurePosixPath(name)
-        parts = p.parts
-        if len(parts) >= 3 and parts[0].lower() == "mods" and parts[-1] == ESP_NAME:
-            candidates.add("/".join(parts[:-1]) + "/")
+        if p.name != ESP_NAME:
+            continue
+        parent = p.parent.as_posix()
+        candidates.add("" if parent == "." else parent.rstrip("/") + "/")
 
-    exact = TARGET_PREFIX
-    if exact in candidates:
-        return exact
+    if not candidates:
+        raise ValueError(f"could not locate {ESP_NAME} in release ZIP")
+
+    if TARGET_PREFIX in candidates:
+        return TARGET_PREFIX
 
     named = sorted(p for p in candidates if "Morrowind_Korean_ReTranslation" in p)
     if len(named) == 1:
         return named[0]
-    if not named:
-        raise ValueError("could not locate a ReTranslation mod folder containing the ESP")
-    raise ValueError(f"multiple ReTranslation mod folders found: {named}")
+    if len(candidates) == 1:
+        return next(iter(candidates))
+
+    raise ValueError(f"multiple possible ReTranslation roots found: {sorted(candidates)}")
+
+
+def should_copy_translation(relative: str) -> bool:
+    p = PurePosixPath(relative)
+    if not p.parts:
+        return False
+    if len(p.parts) == 1 and p.name in CORE_SIDECARS:
+        return True
+    if p.parts[0].lower() == "l10n":
+        return True
+    return False
 
 
 def parse_args() -> argparse.Namespace:
@@ -140,15 +164,17 @@ def main() -> int:
             args.output.unlink()
 
         copied = 0
+        copied_relatives: list[str] = []
         with zipfile.ZipFile(args.output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as dst:
             for name in names:
                 if name.endswith("/") or not name.startswith(source_prefix):
                     continue
                 relative = name[len(source_prefix):]
-                if not relative or relative.lower().startswith("fonts/"):
+                if not should_copy_translation(relative):
                     continue
                 dst.writestr(TARGET_PREFIX + relative, src.read(name))
                 copied += 1
+                copied_relatives.append(relative)
 
             dst.writestr(TARGET_OMWFONT, omwfont_data)
             dst.writestr(TARGET_TTF, ttf_data)
@@ -185,8 +211,9 @@ def main() -> int:
             return 10
 
     print(f"OK: {args.output}")
-    print(f"  source mod folder: {source_prefix}")
+    print(f"  source mod root: {source_prefix or '<zip-root>'}")
     print(f"  copied translation files: {copied}")
+    print(f"  copied payload: {', '.join(copied_relatives)}")
     print(f"  Galmuri11.ttf SHA-256: {ttf_sha}")
     print("  legacy FNT/TEX payload: none")
     print("  translation encoding: unchanged UTF-8 payload")
