@@ -28,7 +28,7 @@ mods/Morrowind_Korean_ReTranslation/
     Galmuri11.ttf
 ```
 
-No new `.omwfont` descriptor is authored for Android. The packager takes the existing KR1 file:
+No new `.omwfont` descriptor is authored for Android. The packager reuses the existing Korean OpenMW descriptor already shipped in KR1:
 
 ```text
 OpenMW/resources/vfs/fonts/MysticCards.omwfont
@@ -46,7 +46,7 @@ Translation ESP/MRK/TOP/CEL/l10n data stays UTF-8.
 
 ## Package the Android test mod
 
-Use an existing KR1 Full ZIP as input. The packager reuses both `MysticCards.omwfont` and `Galmuri11.ttf` already inside that ZIP; it does not download or embed a new font in this repository.
+Use an existing KR1 Full ZIP as input. The packager reuses both `MysticCards.omwfont` and `Galmuri11.ttf` already inside that ZIP; it does not download, regenerate, or embed a new font descriptor in this repository.
 
 ```powershell
 python source\tools\package-korean-omwfont-mod.py `
