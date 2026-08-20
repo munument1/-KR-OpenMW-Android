@@ -24,6 +24,10 @@ jobs:
     timeout-minutes: 180
     env:
       OPENMW_COMMIT: f4bec41444214a7903bebd178389ca22ca13f646
+      UPSTREAM_ANDROID_REPO: Andiweli/OpenMW-Android
+      UPSTREAM_ANDROID_TAG: 0.51.0-04
+      UPSTREAM_ANDROID_APK: OpenMW.0.51-4.apk
+      UPSTREAM_ANDROID_APK_SHA256: 93da9dc4a15fed578631b22c86fc43c187b47dbcec68dc4d324cb3e31b47a007
     steps:
       - name: Checkout Android fork
         uses: actions/checkout@v4
@@ -96,6 +100,36 @@ jobs:
           print('PASS: Android runtime patches precede all three validated Korean patches')
           PY
 
+      - name: Restore pinned OpenMW Android OMWFX assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/upstream-apk/extracted source/app/src/main/assets/android_omwfx
+          gh release download "$UPSTREAM_ANDROID_TAG" --repo "$UPSTREAM_ANDROID_REPO" \
+            --pattern "$UPSTREAM_ANDROID_APK" --dir work/upstream-apk
+
+          apk="work/upstream-apk/$UPSTREAM_ANDROID_APK"
+          actual="$(sha256sum "$apk" | awk '{print $1}')"
+          echo "Pinned upstream Android APK SHA-256: $actual"
+          test "$actual" = "$UPSTREAM_ANDROID_APK_SHA256"
+
+          shaders=(
+            gateh_bloom051.omwfx
+            godrays_android_051_depthfixed_vivid.omwfx
+            lensflare_android_051_rayocc.omwfx
+            rainlens_android_051_v12_dense.omwfx
+            wetworld_android_051_weather.omwfx
+          )
+          for shader in "${shaders[@]}"; do
+            unzip -q "$apk" "assets/android_omwfx/$shader" -d work/upstream-apk/extracted
+            install -m 0644 \
+              "work/upstream-apk/extracted/assets/android_omwfx/$shader" \
+              "source/app/src/main/assets/android_omwfx/$shader"
+          done
+          echo 'Restored the five Gradle-gated OMWFX assets from pinned upstream 0.51.0-04.'
+
       - name: Force fresh OpenMW source only
         shell: bash
         run: |
@@ -152,6 +186,17 @@ jobs:
           printf '%s  %s\n' "$JNI_SHA" "$JNI" > source/buildscripts/openmw-051-patch39-libopenmw.sha256
           printf '%s  %s\n' "$JNI_SHA" "$JNI" > source/buildscripts/korean-openmw-051-libopenmw.sha256
           echo "Korean libopenmw.so SHA-256: $JNI_SHA"
+
+      - name: Save reusable native dependencies after verified native build
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            source/buildscripts/downloads
+            source/buildscripts/toolchain
+            source/buildscripts/prefix/arm64
+            source/buildscripts/build/arm64
+            !source/buildscripts/build/arm64/openmw-prefix
+          key: ${{ runner.os }}-openmw051-r26b-arm64-deps-v2-${{ hashFiles('source/buildscripts/CMakeLists.txt', 'source/buildscripts/include/version.sh') }}
 
       - name: Run launcher unit tests
         working-directory: source
