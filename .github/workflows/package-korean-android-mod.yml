@@ -26,7 +26,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Locate latest usable ReTranslation release asset
+      - name: Locate latest production ReTranslation release asset
         id: translation
         shell: bash
         env:
@@ -34,33 +34,71 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p work/base
-          : > work/release-candidates.txt
+          : > work/release-assets.txt
 
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
+            echo "Release $tag assets:"
             gh release view "$tag" --repo "$TRANSLATION_REPO" --json assets \
-              --jq '.assets[].name' | while IFS= read -r asset; do
-                case "$asset" in
-                  Morrowind-Korean-OpenMW-*-Full.zip|Morrowind_Korean_ReTranslation*.zip)
-                    printf '%s\t%s\n' "$tag" "$asset" >> work/release-candidates.txt
-                    ;;
-                esac
-              done
+              --jq '.assets[] | [.updatedAt, .name] | @tsv' | tee work/current-assets.txt
+
+            python3 - "$tag" work/current-assets.txt work/release-assets.txt <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          tag = sys.argv[1]
+          current = Path(sys.argv[2])
+          output = Path(sys.argv[3])
+
+          rows = []
+          for raw in current.read_text(encoding="utf-8").splitlines():
+              if not raw.strip():
+                  continue
+              updated, name = raw.split("\t", 1)
+              lower = name.lower()
+              if not lower.endswith(".zip"):
+                  continue
+              if not (
+                  ("morrowind-korean-openmw" in lower and "full" in lower)
+                  or lower.startswith("morrowind_korean_retranslation")
+              ):
+                  continue
+              # Never silently package diagnostic/minimal artifacts as a release.
+              if any(token in lower for token in ("test", "parser", "closure", "minimal", "debug", "diagnostic")):
+                  continue
+              rows.append((updated, tag, name))
+
+          if rows:
+              # Asset updatedAt is ISO-8601, so lexical ordering is chronological.
+              rows.sort(reverse=True)
+              with output.open("a", encoding="utf-8") as f:
+                  for updated, release_tag, name in rows:
+                      f.write(f"{updated}\t{release_tag}\t{name}\n")
+          PY
+
+            # gh release list is newest release first. As soon as this release has
+            # a production package, do not fall through to an older release.
+            if [ -s work/release-assets.txt ]; then
+              break
+            fi
           done < <(gh release list --repo "$TRANSLATION_REPO" --limit 50 --json tagName --jq '.[].tagName')
 
-          if [ ! -s work/release-candidates.txt ]; then
-            echo "No usable ReTranslation ZIP asset found in $TRANSLATION_REPO releases" >&2
+          if [ ! -s work/release-assets.txt ]; then
+            echo "No production ReTranslation/Full ZIP found in $TRANSLATION_REPO releases" >&2
             exit 1
           fi
 
-          IFS=$'\t' read -r tag asset < work/release-candidates.txt
-          echo "Using translation release: $tag / $asset"
+          sort -r work/release-assets.txt > work/release-assets.sorted.txt
+          IFS=$'\t' read -r updated tag asset < work/release-assets.sorted.txt
+          echo "Selected translation release: $tag / $asset ($updated)"
           gh release download "$tag" --repo "$TRANSLATION_REPO" --pattern "$asset" --dir work/base
 
           base_zip="work/base/$asset"
           test -f "$base_zip"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "updated=$updated" >> "$GITHUB_OUTPUT"
           echo "base_zip=$base_zip" >> "$GITHUB_OUTPUT"
           sha256sum "$base_zip"
 
@@ -99,6 +137,11 @@ jobs:
 
           unzip -l out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
           sha256sum out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip | tee out/SHA256SUMS.txt
+          printf 'translation_tag=%s\ntranslation_asset=%s\ntranslation_asset_updated=%s\n' \
+            '${{ steps.translation.outputs.tag }}' \
+            '${{ steps.translation.outputs.asset }}' \
+            '${{ steps.translation.outputs.updated }}' \
+            > out/SOURCE.txt
 
       - name: Upload installable Korean mod
         uses: actions/upload-artifact@v4
@@ -107,6 +150,7 @@ jobs:
           path: |
             out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
             out/SHA256SUMS.txt
+            out/SOURCE.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
