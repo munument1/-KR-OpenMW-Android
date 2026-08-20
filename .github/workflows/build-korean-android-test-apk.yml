@@ -1,0 +1,195 @@
+name: Build Korean OpenMW Android test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/korean-omwfont-minimal]
+    paths:
+      - "source/buildscripts/CMakeLists.txt"
+      - "source/buildscripts/build.sh"
+      - "source/buildscripts/include/**"
+      - "source/buildscripts/patches/openmw051-final/**"
+      - "source/app/openmw.base.cfg"
+      - "source/app/build.gradle"
+      - "source/app/src/main/java/file/IniConverter.kt"
+      - "source/app/src/test/java/file/IniConverterTest.kt"
+      - ".github/workflows/build-korean-android-test-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-korean-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      OPENMW_COMMIT: f4bec41444214a7903bebd178389ca22ca13f646
+    steps:
+      - name: Checkout Android fork
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install build prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake gettext-base pkg-config unzip bzip2 xz-utils \
+            wget curl git ninja-build autoconf automake libtool nasm yasm
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+
+      - name: Restore reusable native dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            source/buildscripts/downloads
+            source/buildscripts/toolchain
+            source/buildscripts/prefix/arm64
+            source/buildscripts/build/arm64
+            !source/buildscripts/build/arm64/openmw-prefix
+          key: ${{ runner.os }}-openmw051-r26b-arm64-deps-v2-${{ hashFiles('source/buildscripts/CMakeLists.txt', 'source/buildscripts/include/version.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-openmw051-r26b-arm64-deps-v2-
+
+      - name: Verify Korean ExternalProject patch chain
+        shell: python
+        run: |
+          from pathlib import Path
+
+          text = Path('source/buildscripts/CMakeLists.txt').read_text(encoding='utf-8')
+          expected = [
+              'apply-ndk-r26-format.py',
+              'apply-android-runtime-baseline.py',
+              'apply-android-gl4es-core-inline.py',
+              '0003-korean-cjk-topic-discovery.patch',
+              '0004-korean-utf8-bom-sidecars.patch',
+              '0005-korean-mixed-utf8-esm-reader.patch',
+          ]
+          pos = -1
+          for token in expected:
+              new_pos = text.find(token)
+              if new_pos < 0:
+                  raise SystemExit(f'missing OpenMW patch-chain token: {token}')
+              if new_pos <= pos:
+                  raise SystemExit(f'OpenMW patch-chain order is wrong at: {token}')
+              pos = new_pos
+          if f'set(OPENMW_VERSION {__import__("os").environ["OPENMW_COMMIT"]})' not in text:
+              raise SystemExit('OpenMW commit pin is not the required 0.51.0 Final commit')
+          print('PASS: Android runtime patches precede all three validated Korean patches')
+
+      - name: Force fresh OpenMW source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf source/buildscripts/build/arm64/openmw-prefix
+          echo 'Removed only the OpenMW ExternalProject prefix; cached third-party prefixes remain reusable.'
+
+      - name: Build ARM64 OpenMW runtime
+        working-directory: source/buildscripts
+        shell: bash
+        run: |
+          set -o pipefail
+          find . -type f -name '*.sh' -exec chmod +x {} +
+          ./build.sh --arch arm64 --lto --jobs 2 2>&1 | tee korean-native-build.log
+
+      - name: Verify exact Korean source produced native payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC='source/buildscripts/build/arm64/openmw-prefix/src/openmw'
+          JNI='source/app/src/main/jniLibs/arm64-v8a/libopenmw.so'
+          SYM='source/buildscripts/symbols/arm64-v8a/libopenmw.so'
+          MARKER='source/app/src/main/assets/libopenmw/openmw/openmw-engine-version.txt'
+
+          test -s "$JNI"
+          test -s "$SYM"
+          test -s "$MARKER"
+          test "$(cat "$MARKER")" = $'OpenMW 0.51.0 Final\ncommit=f4bec41444214a7903bebd178389ca22ca13f646'
+
+          grep -Fq 'OPENMW_ANDROID_051_RUNTIME_BASELINE' "$SRC/apps/openmw/androidmain.cpp"
+          grep -Fq 'OPENMW_ANDROID_051_GL4ES_CORE_INLINE' "$SRC/files/shaders/lib/core/vertex.h.glsl"
+
+          grep -Fq 'parseHyperText(text, mTranslationDataStorage, true)' \
+            "$SRC/apps/openmw/mwdialogue/dialoguemanagerimp.cpp"
+          grep -Fq 'static_cast<unsigned char>(*i) < 0xe0' \
+            "$SRC/apps/openmw/mwdialogue/keywordsearch.cpp"
+          grep -Fq 'std::ios::binary' "$SRC/components/translation/translation.cpp"
+          grep -Fq 'utf8BomMode ? std::string_view(line)' "$SRC/components/translation/translation.cpp"
+          grep -Fq 'bool isValidUtf8WithHangul(std::string_view input)' "$SRC/components/esm3/esmreader.cpp"
+          grep -Fq 'if (isValidUtf8WithHangul(raw))' "$SRC/components/esm3/esmreader.cpp"
+
+          SYMBOL_SIZE=$(stat -c %s "$SYM")
+          JNI_SIZE=$(stat -c %s "$JNI")
+          test "$JNI_SIZE" -lt "$SYMBOL_SIZE"
+
+          READELF='source/buildscripts/toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf'
+          test -x "$READELF"
+          if "$READELF" -S "$JNI" 2>/dev/null | grep -Eq '\.debug_(info|line|str|abbrev)'; then
+            echo 'Packaged libopenmw.so still contains DWARF debug sections.' >&2
+            exit 1
+          fi
+
+          JNI_SHA="$(sha256sum "$JNI" | awk '{print $1}')"
+          printf '%s  %s\n' "$JNI_SHA" "$JNI" > source/buildscripts/openmw-051-patch39-libopenmw.sha256
+          printf '%s  %s\n' "$JNI_SHA" "$JNI" > source/buildscripts/korean-openmw-051-libopenmw.sha256
+          echo "Korean libopenmw.so SHA-256: $JNI_SHA"
+
+      - name: Run launcher unit tests
+        working-directory: source
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew :app:testMainlineDebugUnitTest --stacktrace 2>&1 | tee korean-gradle-unit-tests.log
+
+      - name: Assemble mainline debug APK
+        working-directory: source
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleMainlineDebug --stacktrace 2>&1 | tee korean-gradle-build.log
+
+      - name: Verify APK payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk'
+          test -s "$APK"
+          unzip -l "$APK" > /tmp/apk-files.txt
+          grep -Fq 'lib/arm64-v8a/libopenmw.so' /tmp/apk-files.txt
+          if grep -Ei '(^|/)[^/]*\.(fnt|tex)$' /tmp/apk-files.txt; then
+            echo 'Legacy bitmap FNT/TEX asset leaked into the Android APK.' >&2
+            exit 1
+          fi
+          sha256sum "$APK" | tee "$APK.sha256"
+
+      - name: Upload Korean APK and native diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: openmw-051-korean-utf8-test-apk
+          path: |
+            source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk
+            source/app/build/outputs/apk/mainline/debug/app-mainline-debug.apk.sha256
+            source/buildscripts/korean-openmw-051-libopenmw.sha256
+            source/buildscripts/openmw-051-runtime-native-build.log
+            source/buildscripts/symbols/arm64-v8a/libopenmw.so
+            source/korean-gradle-unit-tests.log
+            source/korean-gradle-build.log
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
