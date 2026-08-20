@@ -8,7 +8,7 @@ on:
       - "source/app/src/main/java/file/IniConverter.kt"
       - "source/app/src/test/java/file/IniConverterTest.kt"
       - "source/tools/package-korean-omwfont-mod.py"
-      - "source/tools/assets/KR_OpenMW_Korean.omwfont"
+      - "source/tools/assets/MysticCards.omwfont"
       - ".github/workflows/package-korean-android-mod.yml"
 
 permissions:
@@ -43,7 +43,6 @@ jobs:
               --jq '.assets[] | [.updatedAt, .name] | @tsv' | tee work/current-assets.txt
 
             python3 - "$tag" work/current-assets.txt work/release-assets.txt <<'PY'
-          import re
           import sys
           from pathlib import Path
 
@@ -70,7 +69,6 @@ jobs:
               rows.append((updated, tag, name))
 
           if rows:
-              # Asset updatedAt is ISO-8601, so lexical ordering is chronological.
               rows.sort(reverse=True)
               with output.open("a", encoding="utf-8") as f:
                   for updated, release_tag, name in rows:
@@ -130,14 +128,14 @@ jobs:
           mkdir -p out
           python3 source/tools/package-korean-omwfont-mod.py \
             --base-zip "${{ steps.translation.outputs.base_zip }}" \
-            --omwfont source/tools/assets/KR_OpenMW_Korean.omwfont \
+            --omwfont source/tools/assets/MysticCards.omwfont \
             --ttf work/galmuri/dist/Galmuri11.ttf \
             --font-license work/galmuri/Galmuri11-OFL-1.1.md \
             --output out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
 
           unzip -l out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
           sha256sum out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip | tee out/SHA256SUMS.txt
-          printf 'translation_tag=%s\ntranslation_asset=%s\ntranslation_asset_updated=%s\n' \
+          printf 'translation_tag=%s\ntranslation_asset=%s\ntranslation_asset_updated=%s\nfont_slot=MysticCards\n' \
             '${{ steps.translation.outputs.tag }}' \
             '${{ steps.translation.outputs.asset }}' \
             '${{ steps.translation.outputs.updated }}' \
