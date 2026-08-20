@@ -1,0 +1,93 @@
+diff --git a/components/esm3/esmreader.cpp b/components/esm3/esmreader.cpp
+--- a/components/esm3/esmreader.cpp
++++ b/components/esm3/esmreader.cpp
+@@ -12,5 +12,68 @@
+ #include <sstream>
+ #include <stdexcept>
+ 
++namespace
++{
++    bool isValidUtf8WithHangul(std::string_view input)
++    {
++        bool hasHangul = false;
++        std::size_t i = 0;
++        while (i < input.size())
++        {
++            const unsigned char first = static_cast<unsigned char>(input[i]);
++            if (first < 0x80)
++            {
++                ++i;
++                continue;
++            }
++
++            std::size_t length = 0;
++            std::uint32_t codepoint = 0;
++            std::uint32_t minimum = 0;
++            if ((first & 0xe0) == 0xc0)
++            {
++                length = 2;
++                codepoint = first & 0x1f;
++                minimum = 0x80;
++            }
++            else if ((first & 0xf0) == 0xe0)
++            {
++                length = 3;
++                codepoint = first & 0x0f;
++                minimum = 0x800;
++            }
++            else if ((first & 0xf8) == 0xf0)
++            {
++                length = 4;
++                codepoint = first & 0x07;
++                minimum = 0x10000;
++            }
++            else
++                return false;
++
++            if (i + length > input.size())
++                return false;
++
++            for (std::size_t j = 1; j < length; ++j)
++            {
++                const unsigned char next = static_cast<unsigned char>(input[i + j]);
++                if ((next & 0xc0) != 0x80)
++                    return false;
++                codepoint = (codepoint << 6) | (next & 0x3f);
++            }
++
++            if (codepoint < minimum || codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff))
++                return false;
++
++            if ((codepoint >= 0xac00 && codepoint <= 0xd7a3) || (codepoint >= 0x1100 && codepoint <= 0x11ff)
++                || (codepoint >= 0x3130 && codepoint <= 0x318f))
++                hasHangul = true;
++
++            i += length;
++        }
++        return hasHangul;
++    }
++}
++
+ namespace ESM
+ {
+@@ -430,11 +493,18 @@ namespace ESM
+ 
+         size = strnlen(ptr, size);
+ 
++        const std::string_view raw(ptr, size);
++
++        // Korean translation plugins can contain UTF-8 Hangul alongside legacy win1252 masters.
++        // Preserve validated UTF-8 Hangul strings without requiring a global encoding setting change.
++        if (isValidUtf8WithHangul(raw))
++            return raw;
++
+         // Convert to UTF8 and return
+         if (mEncoder != nullptr)
+-            return mEncoder->getUtf8(std::string_view(ptr, size));
++            return mEncoder->getUtf8(raw);
+ 
+-        return std::string_view(ptr, size);
++        return raw;
+     }
+ 
+     RefId ESMReader::getRefId(std::size_t size)
