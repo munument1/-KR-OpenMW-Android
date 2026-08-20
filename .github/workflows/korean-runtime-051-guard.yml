@@ -2,6 +2,16 @@ name: Korean OpenMW 0.51 runtime guard
 
 on:
   workflow_dispatch:
+  push:
+    branches: [agent/korean-omwfont-minimal]
+    paths:
+      - "source/buildscripts/CMakeLists.txt"
+      - "source/buildscripts/patches/openmw051-final/0003-korean-cjk-topic-discovery.patch"
+      - "source/buildscripts/patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch"
+      - "source/buildscripts/patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch"
+      - "source/tools/prepare-openmw-051-runtime.ps1"
+      - "source/tools/build-openmw-051-runtime.ps1"
+      - ".github/workflows/korean-runtime-051-guard.yml"
   pull_request:
     paths:
       - "source/buildscripts/CMakeLists.txt"
