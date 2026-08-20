@@ -19,12 +19,18 @@ $PatchDir = Join-Path $ProjectRoot 'buildscripts\patches\openmw051-final'
 $FormatPatcher = Join-Path $PatchDir 'apply-ndk-r26-format.py'
 $RuntimePatcher = Join-Path $PatchDir 'apply-android-runtime-baseline.py'
 $Gl4esCorePatcher = Join-Path $PatchDir 'apply-android-gl4es-core-inline.py'
+$KoreanTopicPatch = Join-Path $PatchDir '0003-korean-cjk-topic-discovery.patch'
+$KoreanSidecarPatch = Join-Path $PatchDir '0004-korean-utf8-bom-sidecars.patch'
+$KoreanEsmPatch = Join-Path $PatchDir '0005-korean-mixed-utf8-esm-reader.patch'
 
 foreach ($Required in @(
     $CMakeFile,
     $VersionFile,
     (Join-Path $PatchDir '0001-ndk-r26-stringstream-compat.patch'),
     (Join-Path $PatchDir '0002-static-osg-link.patch'),
+    $KoreanTopicPatch,
+    $KoreanSidecarPatch,
+    $KoreanEsmPatch,
     $FormatPatcher,
     $RuntimePatcher,
     $Gl4esCorePatcher
@@ -77,6 +83,9 @@ $WantedPatchBlock = @'
 set(OPENMW_PATCH
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0001-ndk-r26-stringstream-compat.patch &&
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0002-static-osg-link.patch &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0003-korean-cjk-topic-discovery.patch &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch &&
         python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-ndk-r26-format.py <SOURCE_DIR> &&
         python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-runtime-baseline.py <SOURCE_DIR> &&
         python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-gl4es-core-inline.py <SOURCE_DIR>
@@ -93,24 +102,30 @@ if ($PatchMatches[0].Value.Trim() -ne $WantedPatchBlock.Trim()) {
         $PatchMatches[0].Index,
         $WantedPatchBlock.TrimEnd()
     )
-    Write-Host 'OpenMW 0.51 runtime: installed Patch 3 Android runtime patch chain.' -ForegroundColor Cyan
+    Write-Host 'OpenMW 0.51 runtime: installed Android + Korean runtime patch chain.' -ForegroundColor Cyan
 }
 
 Write-Utf8Lf $CMakeFile $CMake
 
-# Patch 1 may already have produced an unpatched 0.51 ExternalProject tree.
-# Refresh OpenMW only if the Patch-2 runtime marker is absent; all third-party
-# dependency prefixes remain reusable.
+# An existing ExternalProject tree may predate one or more Korean runtime patches.
+# Refresh OpenMW only when required markers are absent; all third-party dependency
+# prefixes remain reusable.
 $OpenMwPrefix = Join-Path $ProjectRoot 'buildscripts\build\arm64\openmw-prefix'
 if (Test-Path $OpenMwPrefix) {
-    $AndroidMainMarker = Join-Path $OpenMwPrefix 'src\openmw\apps\openmw\androidmain.cpp'
-    $HasPatch2 = $false
-    if (Test-Path $AndroidMainMarker) {
-        $HasPatch2 = (Read-Lf $AndroidMainMarker).Contains('OPENMW_ANDROID_051_RUNTIME_BASELINE')
-    }
-    if (-not $HasPatch2) {
+    $SourceRoot = Join-Path $OpenMwPrefix 'src\openmw'
+    $AndroidMainMarker = Join-Path $SourceRoot 'apps\openmw\androidmain.cpp'
+    $KeywordMarker = Join-Path $SourceRoot 'apps\openmw\mwdialogue\keywordsearch.cpp'
+    $TranslationMarker = Join-Path $SourceRoot 'components\translation\translation.cpp'
+    $EsmMarker = Join-Path $SourceRoot 'components\esm3\esmreader.cpp'
+
+    $HasAndroidRuntime = (Test-Path $AndroidMainMarker) -and (Read-Lf $AndroidMainMarker).Contains('OPENMW_ANDROID_051_RUNTIME_BASELINE')
+    $HasKoreanTopic = (Test-Path $KeywordMarker) -and (Read-Lf $KeywordMarker).Contains('allow starts of 3/4-byte UTF-8 chars')
+    $HasKoreanSidecars = (Test-Path $TranslationMarker) -and (Read-Lf $TranslationMarker).Contains('utf8BomMode')
+    $HasKoreanEsm = (Test-Path $EsmMarker) -and (Read-Lf $EsmMarker).Contains('isValidUtf8WithHangul')
+
+    if (-not ($HasAndroidRuntime -and $HasKoreanTopic -and $HasKoreanSidecars -and $HasKoreanEsm)) {
         Remove-Item $OpenMwPrefix -Recurse -Force
-        Write-Host 'OpenMW 0.51 runtime: removed Patch-1 OpenMW tree so Patch 2 is applied cleanly.' -ForegroundColor Yellow
+        Write-Host 'OpenMW 0.51 runtime: removed stale OpenMW tree so Android/Korean patches are applied cleanly.' -ForegroundColor Yellow
     }
 }
 
@@ -119,6 +134,9 @@ foreach ($Token in @(
     "set(OPENMW_VERSION $FinalCommit)",
     'patches/openmw051-final/0001-ndk-r26-stringstream-compat.patch',
     'patches/openmw051-final/0002-static-osg-link.patch',
+    'patches/openmw051-final/0003-korean-cjk-topic-discovery.patch',
+    'patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch',
+    'patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch',
     'patches/openmw051-final/apply-ndk-r26-format.py',
     'patches/openmw051-final/apply-android-runtime-baseline.py',
     'patches/openmw051-final/apply-android-gl4es-core-inline.py'
@@ -171,9 +189,24 @@ foreach ($Token in @(
     }
 }
 
+$KoreanPatchChecks = @(
+    @($KoreanTopicPatch, 'parseHyperText(text, mTranslationDataStorage, true)'),
+    @($KoreanTopicPatch, 'allow starts of 3/4-byte UTF-8 chars'),
+    @($KoreanSidecarPatch, 'std::ios::binary'),
+    @($KoreanSidecarPatch, 'utf8BomMode'),
+    @($KoreanEsmPatch, 'isValidUtf8WithHangul'),
+    @($KoreanEsmPatch, 'mEncoder->getUtf8(raw)')
+)
+foreach ($Check in $KoreanPatchChecks) {
+    $PatchText = Read-Lf $Check[0]
+    if (-not $PatchText.Contains($Check[1])) {
+        throw "Korean runtime patch verification failed: $($Check[0]) missing $($Check[1])"
+    }
+}
+
 Write-Host ''
-Write-Host 'OpenMW 0.51 Patch 3 runtime setup: READY' -ForegroundColor Green
+Write-Host 'OpenMW 0.51 Android + Korean runtime setup: READY' -ForegroundColor Green
 Write-Host "Pinned engine: OpenMW 0.51.0 Final / $FinalCommit"
-Write-Host 'Active engine patches: NDK r26 compatibility + static OSG + Android lifecycle + loading-screen workaround + GL4ES uniform syntax + core helper inlining'
-Write-Host 'Runtime config fix: preserve/restore OpenMW 0.51 resources/vfs-mw before game/mod data paths'
-Write-Host 'Still deferred: remaining GL4ES normal-space fixes, GLES2 shadow compare/depth-clamp, post-processing API 5 Android stabilization, OMWFX enablement'
+Write-Host 'Active engine patches: NDK r26 compatibility + static OSG + Android lifecycle/GL4ES + Korean CJK topics + UTF-8 BOM sidecars + mixed UTF-8 Hangul ESM strings'
+Write-Host 'Runtime config policy: keep win1252 for vanilla masters; Korean UTF-8 payload is detected selectively'
+Write-Host 'Font policy: launcher selects MysticCards; translation package supplies MysticCards.omwfont + Galmuri11.ttf'
