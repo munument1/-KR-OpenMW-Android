@@ -9,6 +9,7 @@ on:
       - "source/app/src/test/java/file/IniConverterTest.kt"
       - "source/tools/package-korean-omwfont-mod.py"
       - "source/tools/assets/MysticCards.omwfont"
+      - "source/tools/.ci-input/current-kr1-rc10l-no-fonts.zip"
       - ".github/workflows/package-korean-android-mod.yml"
 
 permissions:
@@ -22,11 +23,12 @@ jobs:
       GALMURI_REPO: quiple/galmuri
       GALMURI_TAG: v2.40.4
       GALMURI_SHA256: e24256f42e43713d2ea086a1e1669d78b968f5b3cc547e5c157f0606ffa5def1
+      PINNED_KR1_INPUT: source/tools/.ci-input/current-kr1-rc10l-no-fonts.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Locate latest production ReTranslation release asset
+      - name: Locate Korean ReTranslation input
         id: translation
         shell: bash
         env:
@@ -34,8 +36,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p work/base
-          : > work/release-assets.txt
 
+          if [ -f "$PINNED_KR1_INPUT" ]; then
+            base_zip="work/base/current-kr1-rc10l-no-fonts.zip"
+            cp "$PINNED_KR1_INPUT" "$base_zip"
+            echo "Using branch-pinned current KR1/RC10l translation payload"
+            echo "tag=current-kr1-rc10l" >> "$GITHUB_OUTPUT"
+            echo "asset=current-kr1-rc10l-no-fonts.zip" >> "$GITHUB_OUTPUT"
+            echo "updated=branch-pinned" >> "$GITHUB_OUTPUT"
+            echo "base_zip=$base_zip" >> "$GITHUB_OUTPUT"
+            sha256sum "$base_zip"
+            exit 0
+          fi
+
+          : > work/release-assets.txt
           while IFS= read -r tag; do
             [ -n "$tag" ] || continue
             echo "Release $tag assets:"
@@ -63,7 +77,6 @@ jobs:
                   or lower.startswith("morrowind_korean_retranslation")
               ):
                   continue
-              # Never silently package diagnostic/minimal artifacts as a release.
               if any(token in lower for token in ("test", "parser", "closure", "minimal", "debug", "diagnostic")):
                   continue
               rows.append((updated, tag, name))
@@ -75,8 +88,6 @@ jobs:
                       f.write(f"{updated}\t{release_tag}\t{name}\n")
           PY
 
-            # gh release list is newest release first. As soon as this release has
-            # a production package, do not fall through to an older release.
             if [ -s work/release-assets.txt ]; then
               break
             fi
