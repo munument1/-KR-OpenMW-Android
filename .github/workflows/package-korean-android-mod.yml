@@ -9,7 +9,6 @@ on:
       - "source/app/src/test/java/file/IniConverterTest.kt"
       - "source/tools/package-korean-omwfont-mod.py"
       - "source/tools/assets/MysticCards.omwfont"
-      - "source/tools/.ci-input/current-kr1-rc10l-no-fonts.zip"
       - ".github/workflows/package-korean-android-mod.yml"
 
 permissions:
@@ -19,10 +18,13 @@ jobs:
   package:
     runs-on: ubuntu-latest
     env:
+      KR1_REPO: munument1/-KR-openmw
+      KR1_TAG: openmw-0.51.0-kr1
+      KR1_ASSET: Morrowind-Korean-OpenMW-0.51.0-KR1-Full.zip
+      KR1_SHA256: 7d763de2fb1218aab8d8e7ecf3fdb2614abc2c6a21be995899c1749d0682221a
       GALMURI_REPO: quiple/galmuri
       GALMURI_TAG: v2.40.4
       GALMURI_SHA256: e24256f42e43713d2ea086a1e1669d78b968f5b3cc547e5c157f0606ffa5def1
-      PINNED_KR1_INPUT: source/tools/.ci-input/current-kr1-rc10l-no-fonts.zip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,24 +32,32 @@ jobs:
       - name: Require current KR1 RC10l translation payload
         id: translation
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p work/base
 
-          if [ ! -f "$PINNED_KR1_INPUT" ]; then
-            echo "ERROR: current KR1/RC10l payload is not present at $PINNED_KR1_INPUT" >&2
-            echo "RC9 and public RC10j diagnostic assets are intentionally forbidden as fallbacks." >&2
-            exit 1
-          fi
+          base_zip="work/base/$KR1_ASSET"
+          gh release download "$KR1_TAG" --repo "$KR1_REPO" \
+            --pattern "$KR1_ASSET" --dir work/base
 
-          base_zip="work/base/current-kr1-rc10l-no-fonts.zip"
-          cp "$PINNED_KR1_INPUT" "$base_zip"
-          echo "Using branch-pinned current KR1/RC10l translation payload"
-          echo "tag=current-kr1-rc10l" >> "$GITHUB_OUTPUT"
-          echo "asset=current-kr1-rc10l-no-fonts.zip" >> "$GITHUB_OUTPUT"
-          echo "updated=branch-pinned" >> "$GITHUB_OUTPUT"
+          actual="$(sha256sum "$base_zip" | awk '{print $1}')"
+          echo "KR1 release asset SHA-256: $actual"
+          test "$actual" = "$KR1_SHA256"
+
+          updated="$(gh api "repos/${KR1_REPO}/releases/tags/${KR1_TAG}" \
+            --jq ".assets[] | select(.name == \"${KR1_ASSET}\") | .updated_at")"
+          test -n "$updated"
+
+          echo "Using pinned current KR1/RC10l release payload; RC9/RC10j fallback is disabled."
+          echo "baseline=KR1/RC10l" >> "$GITHUB_OUTPUT"
+          echo "repo=$KR1_REPO" >> "$GITHUB_OUTPUT"
+          echo "tag=$KR1_TAG" >> "$GITHUB_OUTPUT"
+          echo "asset=$KR1_ASSET" >> "$GITHUB_OUTPUT"
+          echo "sha256=$actual" >> "$GITHUB_OUTPUT"
+          echo "updated=$updated" >> "$GITHUB_OUTPUT"
           echo "base_zip=$base_zip" >> "$GITHUB_OUTPUT"
-          sha256sum "$base_zip"
 
       - name: Download pinned Galmuri 2.40.4
         shell: bash
@@ -84,9 +94,12 @@ jobs:
 
           unzip -l out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip
           sha256sum out/Morrowind_Korean_ReTranslation_Android_OMWFont.zip | tee out/SHA256SUMS.txt
-          printf 'translation_tag=%s\ntranslation_asset=%s\ntranslation_asset_updated=%s\nfont_slot=MysticCards\n' \
+          printf 'translation_baseline=%s\ntranslation_repo=%s\ntranslation_tag=%s\ntranslation_asset=%s\ntranslation_asset_sha256=%s\ntranslation_asset_updated=%s\nfont_slot=MysticCards\n' \
+            '${{ steps.translation.outputs.baseline }}' \
+            '${{ steps.translation.outputs.repo }}' \
             '${{ steps.translation.outputs.tag }}' \
             '${{ steps.translation.outputs.asset }}' \
+            '${{ steps.translation.outputs.sha256 }}' \
             '${{ steps.translation.outputs.updated }}' \
             > out/SOURCE.txt
 

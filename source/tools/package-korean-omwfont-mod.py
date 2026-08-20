@@ -25,6 +25,7 @@ CORE_SIDECARS = {
     "Morrowind_Korean_ReTranslation.top",
     "Morrowind_Korean_ReTranslation.cel",
 }
+UTF8_BOM_SIDECARS = {".cel", ".mrk", ".top"}
 TARGET_OMWFONT = FONT_PREFIX + "MysticCards.omwfont"
 TARGET_TTF = FONT_PREFIX + "Galmuri11.ttf"
 TARGET_LICENSE = FONT_PREFIX + "Galmuri11-OFL-1.1.md"
@@ -106,6 +107,22 @@ def should_copy_translation(relative: str) -> bool:
     return False
 
 
+def validate_translation_payload(relative: str, data: bytes) -> None:
+    p = PurePosixPath(relative)
+    if p.suffix.lower() in UTF8_BOM_SIDECARS:
+        if not data.startswith(b"\xef\xbb\xbf"):
+            raise ValueError(f"UTF-8 BOM is missing from sidecar: {relative}")
+        try:
+            data[3:].decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"sidecar is not valid UTF-8: {relative}: {exc}") from exc
+    elif p.parts and p.parts[0].lower() == "l10n":
+        try:
+            data.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"l10n file is not valid UTF-8: {relative}: {exc}") from exc
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-zip", required=True, type=Path,
@@ -159,6 +176,29 @@ def main() -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 6
 
+        required_source = {source_prefix + name for name in CORE_SIDECARS}
+        missing_source = sorted(required_source.difference(names))
+        if missing_source:
+            print("ERROR: current translation payload is incomplete; missing:", file=sys.stderr)
+            for name in missing_source:
+                print(f"  {name}", file=sys.stderr)
+            return 7
+
+        translation_payload: list[tuple[str, bytes]] = []
+        try:
+            for name in names:
+                if name.endswith("/") or not name.startswith(source_prefix):
+                    continue
+                relative = name[len(source_prefix):]
+                if not should_copy_translation(relative):
+                    continue
+                data = src.read(name)
+                validate_translation_payload(relative, data)
+                translation_payload.append((relative, data))
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 8
+
         args.output.parent.mkdir(parents=True, exist_ok=True)
         if args.output.exists():
             args.output.unlink()
@@ -166,13 +206,8 @@ def main() -> int:
         copied = 0
         copied_relatives: list[str] = []
         with zipfile.ZipFile(args.output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as dst:
-            for name in names:
-                if name.endswith("/") or not name.startswith(source_prefix):
-                    continue
-                relative = name[len(source_prefix):]
-                if not should_copy_translation(relative):
-                    continue
-                dst.writestr(TARGET_PREFIX + relative, src.read(name))
+            for relative, data in translation_payload:
+                dst.writestr(TARGET_PREFIX + relative, data)
                 copied += 1
                 copied_relatives.append(relative)
 
@@ -193,22 +228,22 @@ def main() -> int:
             print("ERROR: output validation failed; missing:", file=sys.stderr)
             for name in missing:
                 print(f"  {name}", file=sys.stderr)
-            return 7
+            return 9
 
         if check.read(TARGET_OMWFONT) != omwfont_data:
             print("ERROR: omwfont changed during packaging", file=sys.stderr)
-            return 8
+            return 10
         if sha256(check.read(TARGET_TTF)) != EXPECTED_GALMURI11_SHA256:
             print("ERROR: packaged TTF hash mismatch", file=sys.stderr)
-            return 9
+            return 11
 
         legacy_fonts = [
             n for n in check.namelist()
-            if n.startswith(FONT_PREFIX) and n.lower().endswith((".fnt", ".tex"))
+            if n.lower().endswith((".fnt", ".tex"))
         ]
         if legacy_fonts:
             print(f"ERROR: legacy bitmap fonts leaked into package: {legacy_fonts}", file=sys.stderr)
-            return 10
+            return 12
 
     print(f"OK: {args.output}")
     print(f"  source mod root: {source_prefix or '<zip-root>'}")

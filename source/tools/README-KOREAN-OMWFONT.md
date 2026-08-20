@@ -88,9 +88,9 @@ This keeps the original masters compatible while allowing the Korean translation
 
 `source/tools/package-korean-omwfont-mod.py` is an internal CI/release tool. It normalizes the current Korean ReTranslation payload into the Android data-dir layout, drops legacy `.fnt/.tex` assets, and adds the validated OpenMW TrueType font payload.
 
-`.github/workflows/package-korean-android-mod.yml` requires the current KR1/RC10l payload at `source/tools/.ci-input/current-kr1-rc10l-no-fonts.zip`, downloads Galmuri v2.40.4 from the official `quiple/galmuri` release, verifies the font SHA and OFL license, and uploads an installable ZIP artifact.
+`.github/workflows/package-korean-android-mod.yml` downloads the current KR1/RC10l payload from the `munument1/-KR-openmw` release `openmw-0.51.0-kr1`. The exact `Morrowind-Korean-OpenMW-0.51.0-KR1-Full.zip` asset is pinned by SHA-256, and the packager selects only its gameplay `ESP/CEL/MRK/TOP/l10n` tree. It also downloads Galmuri v2.40.4 from the official `quiple/galmuri` release, verifies the font SHA and OFL license, and uploads an installable ZIP artifact.
 
-RC9 and public RC10j parser/closure diagnostic assets are not valid fallbacks. If the current KR1/RC10l payload is unavailable, packaging must fail rather than emit an older test package.
+RC9 and public RC10j parser/closure diagnostic assets are not valid fallbacks. If the pinned current KR1/RC10l asset is unavailable or its hash changes, packaging fails rather than emit an older test package. The packager also requires all four core files and validates that `.cel/.mrk/.top` are BOM-prefixed UTF-8.
 
 ## Native build
 
