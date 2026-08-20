@@ -83,12 +83,12 @@ $WantedPatchBlock = @'
 set(OPENMW_PATCH
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0001-ndk-r26-stringstream-compat.patch &&
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0002-static-osg-link.patch &&
-        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0003-korean-cjk-topic-discovery.patch &&
-        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch &&
-        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch &&
         python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-ndk-r26-format.py <SOURCE_DIR> &&
         python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-runtime-baseline.py <SOURCE_DIR> &&
-        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-gl4es-core-inline.py <SOURCE_DIR>
+        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/apply-android-gl4es-core-inline.py <SOURCE_DIR> &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0003-korean-cjk-topic-discovery.patch &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch
 )
 '@
 
