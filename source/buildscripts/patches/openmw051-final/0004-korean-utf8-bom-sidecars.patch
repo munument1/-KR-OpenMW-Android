@@ -1,0 +1,42 @@
+diff --git a/components/translation/translation.cpp b/components/translation/translation.cpp
+index 61d98a4..3c3054c 100644
+--- a/components/translation/translation.cpp
++++ b/components/translation/translation.cpp
+@@ -30,7 +30,7 @@ namespace Translation
+         const Files::MultiDirCollection& collection = dataFileCollections.getCollection(extension);
+         if (collection.doesExist(fileName))
+         {
+-            std::ifstream stream(collection.getPath(fileName));
++            std::ifstream stream(collection.getPath(fileName), std::ios::binary);
+ 
+             if (!stream.is_open())
+                 throw std::runtime_error("failed to open translation file: " + fileName);
+@@ -42,15 +42,27 @@ namespace Translation
+     void Storage::loadDataFromStream(ContainerType& container, std::istream& stream)
+     {
+         std::string line;
++        bool firstLine = true;
++        bool utf8BomMode = false;
+         while (!stream.eof() && !stream.fail())
+         {
+             std::getline(stream, line);
+             if (!line.empty() && *line.rbegin() == '\r')
+                 line.resize(line.size() - 1);
+ 
++            if (firstLine)
++            {
++                firstLine = false;
++                if (line.compare(0, 3, "\xEF\xBB\xBF") == 0)
++                {
++                    utf8BomMode = true;
++                    line.erase(0, 3);
++                }
++            }
++
+             if (!line.empty())
+             {
+-                const std::string_view utf8 = mEncoder->getUtf8(line);
++                const std::string_view utf8 = utf8BomMode ? std::string_view(line) : mEncoder->getUtf8(line);
+ 
+                 size_t tabPos = utf8.find('\t');
+                 if (tabPos != std::string::npos && tabPos > 0 && tabPos < utf8.size() - 1)
