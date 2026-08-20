@@ -27,9 +27,9 @@ The Android build applies the three validated Korean runtime patches ported from
    - preserves validated UTF-8 Hangul strings from the Korean translation ESP;
    - keeps normal `win1252` conversion for vanilla Morrowind/Tribunal/Bloodmoon strings.
 
-`source/tools/prepare-openmw-051-runtime.ps1` schedules these patches in the OpenMW ExternalProject chain and discards only a stale OpenMW source prefix when the Korean markers are missing. Third-party dependency prefixes remain reusable.
+`source/tools/prepare-openmw-051-runtime.ps1` schedules these patches after the Android/NDK runtime patchers in the OpenMW ExternalProject chain and discards only a stale OpenMW source prefix when required markers are missing. Third-party dependency prefixes remain reusable.
 
-A lightweight GitHub Actions guard downloads the exact `f4bec...` OpenMW source and verifies that all three patches apply cleanly and that the expected runtime markers are present.
+A lightweight GitHub Actions guard downloads the exact `f4bec...` OpenMW source and verifies that all three patches apply cleanly, that the ExternalProject chain contains them in the expected order, and that the native-build wrapper rejects a source tree missing Korean markers.
 
 ## Font behavior
 
@@ -86,11 +86,11 @@ This keeps the original masters compatible while allowing the Korean translation
 
 ## Package workflow
 
-`source/tools/package-korean-omwfont-mod.py` is an internal CI/release tool. It normalizes a Korean ReTranslation ZIP into the Android data-dir layout, drops legacy `.fnt/.tex` assets, and adds the validated OpenMW TrueType font payload.
+`source/tools/package-korean-omwfont-mod.py` is an internal CI/release tool. It normalizes the current Korean ReTranslation payload into the Android data-dir layout, drops legacy `.fnt/.tex` assets, and adds the validated OpenMW TrueType font payload.
 
-`.github/workflows/package-korean-android-mod.yml` downloads Galmuri v2.40.4 from the official `quiple/galmuri` release, verifies the font SHA and OFL license, and uploads an installable ZIP artifact.
+`.github/workflows/package-korean-android-mod.yml` requires the current KR1/RC10l payload at `source/tools/.ci-input/current-kr1-rc10l-no-fonts.zip`, downloads Galmuri v2.40.4 from the official `quiple/galmuri` release, verifies the font SHA and OFL license, and uploads an installable ZIP artifact.
 
-The package workflow intentionally excludes diagnostic/test translation assets. If the newest release contains only a test build, it falls back to the newest production ReTranslation ZIP rather than silently packaging the test asset.
+RC9 and public RC10j parser/closure diagnostic assets are not valid fallbacks. If the current KR1/RC10l payload is unavailable, packaging must fail rather than emit an older test package.
 
 ## Native build
 
