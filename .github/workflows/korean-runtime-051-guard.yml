@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - "source/buildscripts/CMakeLists.txt"
       - "source/buildscripts/patches/openmw051-final/0003-korean-cjk-topic-discovery.patch"
       - "source/buildscripts/patches/openmw051-final/0004-korean-utf8-bom-sidecars.patch"
       - "source/buildscripts/patches/openmw051-final/0005-korean-mixed-utf8-esm-reader.patch"
       - "source/tools/prepare-openmw-051-runtime.ps1"
+      - "source/tools/build-openmw-051-runtime.ps1"
       - ".github/workflows/korean-runtime-051-guard.yml"
 
 permissions:
@@ -67,14 +69,39 @@ jobs:
           grep -F 'mEncoder->getUtf8(raw)' \
             openmw-051/components/esm3/esmreader.cpp
 
-      - name: Verify prepare wrapper schedules all Korean patches
+      - name: Verify Android build chain and post-build gate
         shell: pwsh
         run: |
-          $text = [IO.File]::ReadAllText('source/tools/prepare-openmw-051-runtime.ps1')
-          foreach ($name in @(
+          $cmake = [IO.File]::ReadAllText('source/buildscripts/CMakeLists.txt')
+          $prepare = [IO.File]::ReadAllText('source/tools/prepare-openmw-051-runtime.ps1')
+          $build = [IO.File]::ReadAllText('source/tools/build-openmw-051-runtime.ps1')
+
+          $ordered = @(
+            'apply-ndk-r26-format.py',
+            'apply-android-runtime-baseline.py',
+            'apply-android-gl4es-core-inline.py',
             '0003-korean-cjk-topic-discovery.patch',
             '0004-korean-utf8-bom-sidecars.patch',
             '0005-korean-mixed-utf8-esm-reader.patch'
+          )
+
+          foreach ($text in @($cmake, $prepare)) {
+            $last = -1
+            foreach ($name in $ordered) {
+              $index = $text.IndexOf($name)
+              if ($index -lt 0) { throw "runtime chain is missing $name" }
+              if ($index -le $last) { throw "runtime chain order is wrong at $name" }
+              $last = $index
+            }
+          }
+
+          foreach ($marker in @(
+            'parseHyperText(text, mTranslationDataStorage, true)',
+            'static_cast<unsigned char>(*i) < 0xe0',
+            'std::ios::binary',
+            'utf8BomMode ? std::string_view(line)',
+            'bool isValidUtf8WithHangul(std::string_view input)',
+            'if (isValidUtf8WithHangul(raw))'
           )) {
-            if (-not $text.Contains($name)) { throw "prepare wrapper is missing $name" }
+            if (-not $build.Contains($marker)) { throw "post-build Korean source gate is missing $marker" }
           }
