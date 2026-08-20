@@ -1,0 +1,48 @@
+name: Report Korean branch Action runs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [agent/korean-omwfont-minimal]
+    paths:
+      - ".github/workflows/report-korean-build-runs.yml"
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report recent branch runs to Draft PR 2
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          branch='agent/korean-omwfont-minimal'
+          out="$RUNNER_TEMP/korean-runs.md"
+
+          {
+            echo '<!-- korean-android-run-report -->'
+            echo '### Korean Android branch CI status'
+            echo
+            echo "Reporter commit: \`${GITHUB_SHA}\`"
+            echo
+            echo '| Run ID | Workflow | Event | Status | Conclusion | Head SHA |'
+            echo '| ---: | --- | --- | --- | --- | --- |'
+            gh api -X GET "repos/${repo}/actions/runs" \
+              -f branch="$branch" \
+              -f per_page=15 \
+              --jq '.workflow_runs[] | [.id, .name, .event, .status, (.conclusion // "-"), .head_sha] | @tsv' \
+              | while IFS=$'\t' read -r id name event status conclusion sha; do
+                  printf '| %s | %s | %s | %s | %s | `%s` |\n' \
+                    "$id" "$name" "$event" "$status" "$conclusion" "${sha:0:12}"
+                done
+          } > "$out"
+
+          gh pr comment 2 --repo "$repo" --body-file "$out"
