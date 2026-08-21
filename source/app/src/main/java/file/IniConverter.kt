@@ -45,6 +45,12 @@ class IniConverter(private val data: String) {
                     // It's a category
                     category = it.substring(1, it.length - 1).replace(" ", "_")
                 } else if (it.contains("=")) {
+                    // Keep the Android Korean OpenMW font selection authoritative.
+                    // Vanilla Morrowind.ini commonly contains [Fonts] entries that
+                    // point OpenMW back to bitmap .fnt fonts after import.
+                    if (category.equals("Fonts", ignoreCase = true))
+                        return@forEach
+
                     // It's a key-value pair
                     val converted = convertLine(it)
                     if (converted.isNotEmpty())
