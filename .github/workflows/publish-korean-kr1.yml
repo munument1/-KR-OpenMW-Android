@@ -22,9 +22,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       TAG: android-korean-0.51.0-04-kr1
       TITLE: OpenMW Android 0.51.0-04 Korean KR1
-      SOURCE_RUN: '32439359835'
-      SOURCE_ARTIFACT: OpenMW-0.51.0-04-Korean-Origin-Full-Test
-      EXPECTED_APK_SHA256: 2e95f1880b0e9574cef2920d8276d1a785249c497b09d0dd6a8fe578d93c7041
+      SOURCE_RUN: '32443798781'
+      SOURCE_ARTIFACT: OpenMW-Android-0.51.0-04-Korean-KR1
+      EXPECTED_APK_SHA256: 6de2bd330ce3cdbad6cb981d74ba4e6cbf914f1d3a9e7d5e5c33f3d1e491a6d9
       EXPECTED_LIBOPENMW_SHA256: d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0
 
     steps:
@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SRC_APK='release-artifact/OpenMW-0.51.0-04-Korean-Origin-Full-Test.apk'
+          SRC_APK='release-artifact/OpenMW-Android-0.51.0-04-Korean-KR1.apk'
           OUT_APK='OpenMW-Android-0.51.0-04-Korean-KR1.apk'
           test -s "$SRC_APK"
           test "$(sha256sum "$SRC_APK" | awk '{print $1}')" = "$EXPECTED_APK_SHA256"
@@ -71,9 +71,11 @@ jobs:
           Korean topic patch blob: 4d5e8e5d72ed944fd3286615d9d50f04f2ff97b6
           Korean sidecar patch blob: b83eaf76d1047757214711fbd0074a03876bf6de
           Korean ESM patch blob: aa5c3e5dd74cab31aa1c17aad01a232bf057e727
+          Korean Android UI: values-ko/strings.xml + values-ko/launcher_preferences.xml
           libopenmw.so SHA-256: d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0
-          APK SHA-256: 2e95f1880b0e9574cef2920d8276d1a785249c497b09d0dd6a8fe578d93c7041
-          Verified build run: https://github.com/munument1/-KR-OpenMW-Android/actions/runs/32439359835
+          APK SHA-256: 6de2bd330ce3cdbad6cb981d74ba4e6cbf914f1d3a9e7d5e5c33f3d1e491a6d9
+          Verified runtime build run: https://github.com/munument1/-KR-OpenMW-Android/actions/runs/32439359835
+          Verified Korean UI build run: https://github.com/munument1/-KR-OpenMW-Android/actions/runs/32443798781
           EOF
 
       - name: Write release notes
@@ -81,11 +83,12 @@ jobs:
         shell: bash
         run: |
           cat > RELEASE_NOTES.md <<'EOF'
-          Android용 OpenMW 0.51.0-04 한국어 런타임 KR1입니다.
+          Android용 OpenMW 0.51.0-04 한국어 KR1입니다.
 
-          이번 버전은 정상 동작이 확인된 Andiweli OpenMW-Android 0.51.0-04를 기반으로 하며, Android 지원 라이브러리는 공식 APK의 검증된 바이너리를 유지하고 `libopenmw.so`만 한국어 지원용으로 재빌드했습니다.
+          정상 동작이 확인된 Andiweli OpenMW-Android 0.51.0-04를 기반으로 하며, Android 지원 라이브러리는 공식 APK의 검증된 바이너리를 유지하고 `libopenmw.so`만 한국어 지원용으로 재빌드했습니다.
 
-          ### 포함된 한국어 런타임 처리
+          ### 포함 사항
+          - Android 런처 및 설정 화면 한국어화
           - 한국어/CJK 대화 토픽 탐색
           - `.cel`, `.mrk`, `.top` UTF-8 BOM sidecar 처리
           - UTF-8 한글 ESM 문자열 보존
@@ -95,14 +98,14 @@ jobs:
           한국어 엔진 패치는 `munument1/-KR-openmw`의 검증된 원본에서 가져오며, 커밋과 패치 blob SHA를 고정해 빌드했습니다.
 
           ### 한글패치 데이터
-          한글 번역 데이터/OMWFont는 APK에 포함하지 않습니다. 기존 KR1 한글패치 패키지를 그대로 사용하세요.
+          한글 번역 데이터와 OMWFont는 APK에 포함하지 않습니다. 기존 KR1 한글패치 패키지를 그대로 사용하세요.
           https://github.com/munument1/-KR-openmw/releases/tag/openmw-0.51.0-kr1
 
           ### 설치 참고
           이 APK는 공식 Andiweli APK 또는 이전 테스트 APK와 서명이 다를 수 있어 덮어쓰기가 거부될 수 있습니다. 그 경우 기존 앱의 필요한 설정/데이터를 백업한 뒤 삭제하고 설치하세요.
 
           ### 검증값
-          - APK SHA-256: `2e95f1880b0e9574cef2920d8276d1a785249c497b09d0dd6a8fe578d93c7041`
+          - APK SHA-256: `6de2bd330ce3cdbad6cb981d74ba4e6cbf914f1d3a9e7d5e5c33f3d1e491a6d9`
           - `libopenmw.so` SHA-256: `d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0`
           - OpenMW engine: `f4bec41444214a7903bebd178389ca22ca13f646`
           - Korean runtime source: `munument1/-KR-openmw@aecc06a5807afacf17dccd37fb3cfc685ee580fd`
