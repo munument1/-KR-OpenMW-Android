@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -16,12 +19,13 @@ concurrency:
 
 jobs:
   publish:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'android-korean-0.51.0-04-kr1')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, 'android-korean-0.51.0-04-kr1')) || (github.event_name == 'pull_request' && github.head_ref == 'release/trigger-android-korean-0.51.0-04-kr1.1')
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: android-korean-0.51.0-04-kr1.1
       TITLE: OpenMW Android 0.51.0-04 Korean KR1.1
+      TARGET_SHA: 261d1edb4887d5ca74143136a9fb19f4cee1957a
       SOURCE_RUN: '32464824066'
       SOURCE_ARTIFACT: OpenMW-Android-input-test
       EXPECTED_APK_SHA256: 3a06f43652b66af257adf6f9d8f30a5fd7d2a5f61b57a60bfd80148251c208e0
@@ -72,6 +76,7 @@ jobs:
           Korean sidecar patch blob: b83eaf76d1047757214711fbd0074a03876bf6de
           Korean ESM patch blob: aa5c3e5dd74cab31aa1c17aad01a232bf057e727
           Android input/touch fix: munument1/-KR-OpenMW-Android@a7a28b14ce1a75b89c1efd0d3f0d09ac0f7afbb9
+          Release target: munument1/-KR-OpenMW-Android@261d1edb4887d5ca74143136a9fb19f4cee1957a
           libopenmw.so SHA-256: d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0
           APK SHA-256: 3a06f43652b66af257adf6f9d8f30a5fd7d2a5f61b57a60bfd80148251c208e0
           Verified input/touch APK run: https://github.com/munument1/-KR-OpenMW-Android/actions/runs/32464824066
@@ -132,7 +137,7 @@ jobs:
             'OpenMW-Android-0.51.0-04-Korean-KR1.1.apk.sha256' \
             'OpenMW-Android-0.51.0-04-Korean-KR1.1-provenance.txt' \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$TARGET_SHA" \
             --title "$TITLE" \
             --notes-file RELEASE_NOTES.md
 
