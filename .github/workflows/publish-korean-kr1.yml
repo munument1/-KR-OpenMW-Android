@@ -52,14 +52,14 @@ jobs:
           mkdir -p release-artifact
           gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
             --name "$SOURCE_ARTIFACT" --dir release-artifact
-          find release-artifact -maxdepth 2 -type f -print
+          find release-artifact -maxdepth 8 -type f -print
 
       - name: Verify and prepare release assets
         if: steps.release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          SRC_APK='release-artifact/OpenMW-Android-0.51.0-04-Korean-KR1.apk'
+          SRC_APK='release-artifact/source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-04-Korean-KR1.apk'
           OUT_APK='OpenMW-Android-0.51.0-04-Korean-KR1.1.apk'
           test -s "$SRC_APK"
           test "$(sha256sum "$SRC_APK" | awk '{print $1}')" = "$EXPECTED_APK_SHA256"
