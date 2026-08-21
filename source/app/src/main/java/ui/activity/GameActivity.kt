@@ -28,7 +28,6 @@ import android.preference.PreferenceManager
 import android.system.ErrnoException
 import android.system.Os
 import android.util.Log
-import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.RelativeLayout
 import com.libopenmw.openmw.BuildConfig
@@ -253,39 +252,6 @@ class GameActivity : SDLActivity() {
             showProgressBar()
         else
             showControls()
-    }
-
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Keep the existing SDL dispatch path first. If it accepts the event,
-        // forwarding it again here would cause duplicate key presses.
-        if (super.dispatchKeyEvent(event)) {
-            return true
-        }
-
-        // Android uses negative device IDs for synthetic/virtual events. This
-        // fallback is intentionally limited to physical hardware input that the
-        // legacy SDL source-mask filter failed to recognize.
-        if (event.deviceId < 0) {
-            return false
-        }
-
-        return when (event.action) {
-            KeyEvent.ACTION_DOWN -> {
-                if (SDLActivity.isTextInputEvent(event)) {
-                    val unicode = event.unicodeChar
-                    if (unicode != 0) {
-                        SDLActivity.nativeCommitText(unicode.toChar().toString(), 1)
-                    }
-                }
-                SDLActivity.onNativeKeyDown(event.keyCode)
-                true
-            }
-            KeyEvent.ACTION_UP -> {
-                SDLActivity.onNativeKeyUp(event.keyCode)
-                true
-            }
-            else -> false
-        }
     }
 
     private fun prepareNativeDiagnostics() {

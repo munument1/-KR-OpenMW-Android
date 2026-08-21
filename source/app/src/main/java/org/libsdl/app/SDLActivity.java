@@ -2009,6 +2009,13 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
         int deviceId = event.getDeviceId();
         int source = event.getSource();
 
+        if (source == InputDevice.SOURCE_UNKNOWN) {
+            InputDevice device = InputDevice.getDevice(deviceId);
+            if (device != null) {
+                source = device.getSources();
+            }
+        }
+
         // Dispatch the different events depending on where they come from
         // Some SOURCE_JOYSTICK, SOURCE_DPAD or SOURCE_GAMEPAD are also SOURCE_KEYBOARD
         // So, we try to process them as JOYSTICK/DPAD/GAMEPAD events first, if that fails we try them as KEYBOARD
@@ -2029,30 +2036,7 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
             }
         }
 
-        if (source == InputDevice.SOURCE_UNKNOWN) {
-            InputDevice device = InputDevice.getDevice(deviceId);
-            if (device != null) {
-                source = device.getSources();
-            }
-        }
-
-        if ((source & InputDevice.SOURCE_KEYBOARD) != 0) {
-            if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                //Log.v("SDL", "key down: " + keyCode);
-                if (SDLActivity.isTextInputEvent(event)) {
-                    SDLInputConnection.nativeCommitText(String.valueOf((char) event.getUnicodeChar()), 1);
-                }
-                SDLActivity.onNativeKeyDown(keyCode);
-                return true;
-            }
-            else if (event.getAction() == KeyEvent.ACTION_UP) {
-                //Log.v("SDL", "key up: " + keyCode);
-                SDLActivity.onNativeKeyUp(keyCode);
-                return true;
-            }
-        }
-
-        if ((source & InputDevice.SOURCE_MOUSE) != 0) {
+        if ((source & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE) {
             // on some devices key events are sent for mouse BUTTON_BACK/FORWARD presses
             // they are ignored here because sending them as mouse input to SDL is messy
             if ((keyCode == KeyEvent.KEYCODE_BACK) || (keyCode == KeyEvent.KEYCODE_FORWARD)) {
@@ -2064,6 +2048,20 @@ class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
                     return true;
                 }
             }
+        }
+
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            //Log.v("SDL", "key down: " + keyCode);
+            if (SDLActivity.isTextInputEvent(event)) {
+                SDLInputConnection.nativeCommitText(String.valueOf((char) event.getUnicodeChar()), 1);
+            }
+            SDLActivity.onNativeKeyDown(keyCode);
+            return true;
+        }
+        else if (event.getAction() == KeyEvent.ACTION_UP) {
+            //Log.v("SDL", "key up: " + keyCode);
+            SDLActivity.onNativeKeyUp(keyCode);
+            return true;
         }
 
         return false;
