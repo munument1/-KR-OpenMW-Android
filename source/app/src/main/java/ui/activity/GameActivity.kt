@@ -432,7 +432,7 @@ class GameActivity : SDLActivity() {
         mouseMode = MouseMode.get((prefs.getString("pref_mouse_mode",
             getString(R.string.pref_mouse_mode_default))!!))
 
-        val pref_hide_controls = prefs.getBoolean(Constants.HIDE_CONTROLS, true)
+        val pref_hide_controls = prefs.getBoolean(Constants.HIDE_CONTROLS, false)
         var osc: Osc? = null
         if (!pref_hide_controls) {
             val layout = layout
