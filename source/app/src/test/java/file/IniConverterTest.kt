@@ -45,4 +45,22 @@ Second=Another value
                 "fallback=Another_thing_Second,Another value\n",
             res)
     }
+
+    @Test
+    fun convertSkipsImportedFonts() {
+        val ini = IniConverter("""
+[Fonts]
+Font 0=magic_cards_regular
+Font 1=century_gothic_font_regular
+Font 2=daedric_font
+
+[General]
+Werewolf FOV=100
+        """.trimIndent())
+
+        assertEquals(
+            "fallback=General_Werewolf_FOV,100\n",
+            ini.convert()
+        )
+    }
 }
