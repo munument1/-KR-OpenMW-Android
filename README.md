@@ -44,10 +44,6 @@
 
 ## 다운로드
 
-최신 한국어 배포 파일은 아래 릴리즈에서 함께 제공합니다.
-
-### [OpenMW Android 0.51.0-04 Korean KR1](https://github.com/munument1/-KR-OpenMW-Android/releases/tag/android-korean-0.51.0-04-kr1)
-
 릴리즈에서 다음 두 종류의 파일을 받으면 됩니다.
 
 - **OpenMW Android 한국어 KR1 APK** — Android 앱 및 한국어 대응 엔진
