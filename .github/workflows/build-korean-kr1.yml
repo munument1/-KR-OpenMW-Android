@@ -2,6 +2,9 @@ name: Build Korean Android KR1
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -63,10 +66,10 @@ jobs:
       - name: Upload APK and provenance
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-Android-0.51.0-04-Korean-KR1
+          name: OpenMW-Android-0.51.0-09-Korean-KR1
           path: |
-            source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-04-Korean-KR1.apk
-            source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-04-Korean-KR1.apk.sha256
+            source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-09-Korean-KR1.apk
+            source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-09-Korean-KR1.apk.sha256
             korean-origin.txt
             korean-origin-libopenmw.sha256
           if-no-files-found: error
