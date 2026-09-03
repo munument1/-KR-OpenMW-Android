@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gs_groundcover_density_title">그라운드커버 밀도</string>
+    <string name="gs_groundcover_density_summary">렌더링할 그라운드커버 인스턴스 비율입니다. 100%는 모드의 전체 밀도를 유지하며, 낮출수록 성능이 향상됩니다.</string>
+    <string name="gs_groundcover_rendering_distance_title">그라운드커버 렌더링 거리</string>
+    <string name="gs_groundcover_rendering_distance_summary">그라운드커버를 렌더링하는 거리입니다. 값이 클수록 렌더링 부하가 증가합니다.</string>
+</resources>
