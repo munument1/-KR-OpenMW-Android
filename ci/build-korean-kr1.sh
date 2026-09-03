@@ -3,10 +3,9 @@ set -euo pipefail
 
 OPENMW_COMMIT='f4bec41444214a7903bebd178389ca22ca13f646'
 UPSTREAM_REPO='Andiweli/OpenMW-Android'
-UPSTREAM_TAG='0.51.0-04'
-UPSTREAM_APK='OpenMW.0.51-4.apk'
-UPSTREAM_APK_SHA256='93da9dc4a15fed578631b22c86fc43c187b47dbcec68dc4d324cb3e31b47a007'
-OFFICIAL_LIBOPENMW_SHA256='a99f89d2e8de0f652de219af9acd29db48db10f55f0026cc7a911c426a7efdc0'
+UPSTREAM_TAG='0.51.0-09'
+UPSTREAM_APK='OpenMW.0.51-09.apk'
+UPSTREAM_APK_SHA256='8acd5ae5e44c5702b449aaad8978a4e117772a655e4b119f20d860913036726e'
 KOREAN_ENGINE_REPO='munument1/-KR-openmw'
 KOREAN_ENGINE_COMMIT='aecc06a5807afacf17dccd37fb3cfc685ee580fd'
 KOREAN_TOPIC_BLOB='4d5e8e5d72ed944fd3286615d9d50f04f2ff97b6'
@@ -48,7 +47,10 @@ gh release download "$UPSTREAM_TAG" --repo "$UPSTREAM_REPO" \
   --pattern "$UPSTREAM_APK" --dir work/upstream
 BASE_APK="work/upstream/$UPSTREAM_APK"
 test "$(sha256sum "$BASE_APK" | awk '{print $1}')" = "$UPSTREAM_APK_SHA256"
-test "$(unzip -p "$BASE_APK" lib/arm64-v8a/libopenmw.so | sha256sum | awk '{print $1}')" = "$OFFICIAL_LIBOPENMW_SHA256"
+OFFICIAL_LIBOPENMW_SHA256="$(unzip -p "$BASE_APK" lib/arm64-v8a/libopenmw.so | sha256sum | awk '{print $1}')"
+test -n "$OFFICIAL_LIBOPENMW_SHA256"
+echo "Verified upstream APK: $UPSTREAM_TAG sha256=$UPSTREAM_APK_SHA256"
+echo "Upstream libopenmw.so sha256=$OFFICIAL_LIBOPENMW_SHA256"
 
 python3 - <<'PY'
 from pathlib import Path
@@ -150,9 +152,9 @@ unzip -p "$APK" assets/libopenmw/openmw/openmw.base.cfg > /tmp/openmw.base.cfg
 grep -Fx 'fallback=Fonts_Font_0,MysticCards' /tmp/openmw.base.cfg
 grep -Fx 'fallback=Fonts_Font_2,MysticCards' /tmp/openmw.base.cfg
 "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" > /tmp/badging.txt
-grep -F "versionCode='5104'" /tmp/badging.txt
-grep -F "versionName='0.51.0-04'" /tmp/badging.txt
+grep -F "versionCode='5109'" /tmp/badging.txt
+grep -F "versionName='0.51.0-09'" /tmp/badging.txt
 
-OUT='source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-04-Korean-KR1.apk'
+OUT='source/app/build/outputs/apk/mainline/debug/OpenMW-Android-0.51.0-09-Korean-KR1.apk'
 cp "$APK" "$OUT"
 sha256sum "$OUT" | tee "$OUT.sha256"
