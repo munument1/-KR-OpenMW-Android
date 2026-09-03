@@ -1,0 +1,143 @@
+name: Publish Korean Android KR1
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-korean-android-kr1
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'android-korean-0.51.0-04-kr1')
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: android-korean-0.51.0-04-kr1.1
+      TITLE: OpenMW Android 0.51.0-04 Korean KR1.1
+      SOURCE_RUN: '32464824066'
+      SOURCE_ARTIFACT: OpenMW-Android-input-test
+      EXPECTED_APK_SHA256: 3a06f43652b66af257adf6f9d8f30a5fd7d2a5f61b57a60bfd80148251c208e0
+      EXPECTED_LIBOPENMW_SHA256: d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0
+
+    steps:
+      - name: Check existing release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,name
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download verified APK artifact
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifact
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name "$SOURCE_ARTIFACT" --dir release-artifact
+          find release-artifact -maxdepth 2 -type f -print
+
+      - name: Verify and prepare release assets
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_APK='release-artifact/OpenMW-Android-0.51.0-04-Korean-KR1.apk'
+          OUT_APK='OpenMW-Android-0.51.0-04-Korean-KR1.1.apk'
+          test -s "$SRC_APK"
+          test "$(sha256sum "$SRC_APK" | awk '{print $1}')" = "$EXPECTED_APK_SHA256"
+          test "$(unzip -p "$SRC_APK" lib/arm64-v8a/libopenmw.so | sha256sum | awk '{print $1}')" = "$EXPECTED_LIBOPENMW_SHA256"
+          cp "$SRC_APK" "$OUT_APK"
+          sha256sum "$OUT_APK" > "$OUT_APK.sha256"
+
+          cat > OpenMW-Android-0.51.0-04-Korean-KR1.1-provenance.txt <<EOF
+          Android base: Andiweli/OpenMW-Android 0.51.0-04
+          Base APK SHA-256: 93da9dc4a15fed578631b22c86fc43c187b47dbcec68dc4d324cb3e31b47a007
+          OpenMW engine commit: f4bec41444214a7903bebd178389ca22ca13f646
+          Korean runtime source: munument1/-KR-openmw@aecc06a5807afacf17dccd37fb3cfc685ee580fd
+          Korean topic patch blob: 4d5e8e5d72ed944fd3286615d9d50f04f2ff97b6
+          Korean sidecar patch blob: b83eaf76d1047757214711fbd0074a03876bf6de
+          Korean ESM patch blob: aa5c3e5dd74cab31aa1c17aad01a232bf057e727
+          Android input/touch fix: munument1/-KR-OpenMW-Android@a7a28b14ce1a75b89c1efd0d3f0d09ac0f7afbb9
+          libopenmw.so SHA-256: d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0
+          APK SHA-256: 3a06f43652b66af257adf6f9d8f30a5fd7d2a5f61b57a60bfd80148251c208e0
+          Verified input/touch APK run: https://github.com/munument1/-KR-OpenMW-Android/actions/runs/32464824066
+          EOF
+
+      - name: Write release notes
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          Android용 OpenMW 0.51.0-04 한국어 KR1.1입니다.
+
+          KR1 기반의 Android 입력/터치 수정판입니다. 실기기 테스트에서 새 설치 시 화면 터치 조작키가 정상적으로 표시되는 것을 확인했습니다.
+
+          ### KR1.1 변경 사항
+          - 새 설치에서 화면 터치 조작키가 기본적으로 표시되도록 수정
+          - `pref_hide_controls` 기본값을 명시적으로 `false`로 변경
+          - SDL의 물리 키 입력 라우팅을 최신 SDL2 방식에 가깝게 정리
+          - 게임패드와 마우스 BACK/FORWARD 처리 경로를 일반 키 입력보다 먼저 유지
+
+          ### 알려진 문제
+          - 일부 Bluetooth 키보드에서는 ESC/Enter는 동작하지만 W/A/S/D 및 일반 영문 문자키가 여전히 입력되지 않을 수 있습니다.
+          - 따라서 Bluetooth 키보드 문자 입력 문제는 KR1.1에서 완전히 해결된 것으로 간주하지 않습니다.
+          - 화면 터치 조작키는 정상 표시되므로 터치 조작을 사용할 수 있습니다.
+
+          ### 기존 KR1 포함 사항
+          - Android 런처 및 설정 화면 한국어화
+          - 한국어/CJK 대화 토픽 탐색
+          - `.cel`, `.mrk`, `.top` UTF-8 BOM sidecar 처리
+          - UTF-8 한글 ESM 문자열 보존
+          - `MysticCards` 폰트 슬롯 고정
+          - `Morrowind.ini`의 `[Fonts]` 항목이 한국어 폰트 설정을 덮어쓰지 않도록 차단
+
+          한국어 엔진 패치는 `munument1/-KR-openmw`의 검증된 원본에서 가져오며, 커밋과 패치 blob SHA를 고정해 빌드했습니다.
+
+          ### 한글패치 데이터
+          한글 번역 데이터와 OMWFont는 APK에 포함하지 않습니다. 기존 KR1 한글패치 패키지를 그대로 사용하세요.
+          https://github.com/munument1/-KR-openmw/releases/tag/openmw-0.51.0-kr1
+
+          ### 설치 참고
+          이 APK는 공식 Andiweli APK 또는 이전 테스트 APK와 서명이 다를 수 있어 덮어쓰기가 거부될 수 있습니다. 그 경우 기존 앱의 필요한 설정/데이터를 백업한 뒤 삭제하고 설치하세요.
+
+          ### 검증값
+          - APK SHA-256: `3a06f43652b66af257adf6f9d8f30a5fd7d2a5f61b57a60bfd80148251c208e0`
+          - `libopenmw.so` SHA-256: `d3ba8ac6ab2a2256000c5ebd0f446111378632503145c22a5e85d6c8be65a0b0`
+          - OpenMW engine: `f4bec41444214a7903bebd178389ca22ca13f646`
+          - Korean runtime source: `munument1/-KR-openmw@aecc06a5807afacf17dccd37fb3cfc685ee580fd`
+          - Android input/touch fix: `munument1/-KR-OpenMW-Android@a7a28b14ce1a75b89c1efd0d3f0d09ac0f7afbb9`
+          EOF
+
+      - name: Create GitHub release
+        if: steps.release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            'OpenMW-Android-0.51.0-04-Korean-KR1.1.apk' \
+            'OpenMW-Android-0.51.0-04-Korean-KR1.1.apk.sha256' \
+            'OpenMW-Android-0.51.0-04-Korean-KR1.1-provenance.txt' \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --notes-file RELEASE_NOTES.md
+
+      - name: Verify published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url,tagName,name,isDraft,isPrerelease
