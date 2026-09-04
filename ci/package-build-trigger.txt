@@ -1,2 +1,2 @@
-trigger=run5
-reason=package verified Run 3 Korean 16 KiB native artifact after refreshing Gradle payload digest
+trigger=run6
+reason=publish final verified Run 3 Korean 16 KiB APK with explicit signing and device-test limitations

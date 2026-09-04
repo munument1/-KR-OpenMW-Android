@@ -122,7 +122,10 @@ jobs:
           - APK ZIP 16 KiB 정렬 검증
           - versionCode 5109 / versionName 0.51.0-09 검증
 
-          Galaxy S25 Ultra 등 16 KiB 페이지 기기 호환성 개선을 목표로 한 테스트 빌드이며, 실제 기기 검증 전이므로 프리릴리즈로 배포합니다.
+          ### 알려진 제한사항
+
+          - Android debug 인증서로 서명된 테스트 빌드입니다. 기존 설치본과 서명이 다르면 설정/데이터를 백업한 뒤 기존 앱을 제거하고 새로 설치해야 합니다.
+          - APK/ELF 정적 16 KiB 검증은 완료했지만 실제 16 KiB 페이지 기기에서의 장시간 플레이 검증은 별도로 필요합니다.
           EOF
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
