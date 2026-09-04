@@ -142,4 +142,22 @@ sha256sum "$OUT" | tee "$OUT.sha256"
 cp "$NATIVE_INPUT/korean-origin.txt" "$OUTDIR/korean-origin.txt"
 cp "$NATIVE_INPUT/page-size-report.txt" "$OUTDIR/native-build-page-size-report.txt"
 
+{
+  echo 'OpenMW Android 0.51.0-09 Korean KR1.1 verification'
+  echo 'result=PASS'
+  echo 'required_page_size=16384'
+  echo 'versionCode=5109'
+  echo 'versionName=0.51.0-09'
+  echo 'zipalign_16k=PASS'
+  echo
+  echo '[native build]'
+  cat "$OUTDIR/native-build-page-size-report.txt"
+  echo
+  echo '[packaged native libraries]'
+  cat "$OUTDIR/native-page-size-report.txt"
+  echo
+  echo '[APK native libraries]'
+  cat "$OUTDIR/apk-page-size-report.txt"
+} > "$OUTDIR/16k-verification.txt"
+
 echo 'Verified Korean 0.51.0-09 KR1.1 APK with 16 KiB native ELF alignment.'
