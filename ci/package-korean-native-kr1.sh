@@ -21,7 +21,11 @@ grep -Fq 'required_min_load_align=0x4000' "$NATIVE_INPUT/page-size-report.txt"
 
 NDK_ROOT="${ANDROID_HOME:?ANDROID_HOME is required}/ndk/$NDK_PACKAGE"
 READELF="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
 test -x "$READELF"
+test -x "$AAPT"
+test -x "$ZIPALIGN"
 
 {
   echo 'required_min_load_align=0x4000'
@@ -86,7 +90,7 @@ for library in libopenmw.so libopenal.so libSDL2.so libGL.so libcollada-dom2.5-d
   test "$A" = "$B"
 done
 
-"$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" > /tmp/badging.txt
+"$AAPT" dump badging "$APK" > /tmp/badging.txt
 grep -F "versionCode='5109'" /tmp/badging.txt
 grep -F "versionName='0.51.0-09'" /tmp/badging.txt
 
@@ -112,7 +116,7 @@ unzip -q "$APK" 'lib/arm64-v8a/*.so' -d "$TMPDIR"
 } | tee "$OUTDIR/apk-page-size-report.txt"
 rm -rf "$TMPDIR"
 
-zipalign -c -P 16 4 "$APK"
+"$ZIPALIGN" -c -P 16 4 "$APK"
 
 OUT="$OUTDIR/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk"
 cp "$APK" "$OUT"
