@@ -1,0 +1,125 @@
+name: Package Korean KR1 16K
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - update/openmw-0.51.0-09
+    paths:
+      - ci/package-build-trigger.txt
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NATIVE_RUN_ID: '33834128352'
+      NATIVE_ARTIFACT: OpenMW-0.51.0-09-Korean-native-KR1-16K
+      RELEASE_TAG: android-korean-0.51.0-09-kr1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install packaging requirements
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y unzip zip
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'ndk;27.3.13750724' 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+
+      - name: Download verified Run 3 native artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf native-input
+          mkdir -p native-input
+          gh run download "$NATIVE_RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$NATIVE_ARTIFACT" --dir native-input
+          test -s native-input/libs/libopenmw.so
+          test -s native-input/libopenmw.so.sha256
+          grep -Fq 'required_min_load_align=0x4000' native-input/page-size-report.txt
+
+      - name: Package and verify 16K Korean APK
+        shell: bash
+        env:
+          NATIVE_INPUT: native-input
+        run: |
+          chmod +x ci/package-korean-native-kr1.sh
+          ./ci/package-korean-native-kr1.sh
+
+      - name: Upload verified APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenMW-Android-0.51.0-09-Korean-KR1-16K
+          path: |
+            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk
+            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk.sha256
+            release-artifacts/native-page-size-report.txt
+            release-artifacts/apk-page-size-report.txt
+            release-artifacts/native-build-page-size-report.txt
+            release-artifacts/korean-origin.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Publish Korean 0.51.0-09 prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk'
+          SHA='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk.sha256'
+          cat > release-artifacts/release-notes.md <<'EOF'
+          ## OpenMW Android 0.51.0-09 Korean KR1 — 16 KiB test build
+
+          OpenMW Android 0.51.0-09 기반 한국어 ARM64 프리릴리즈입니다.
+
+          - Run #3에서 성공한 한국어 16 KiB 네이티브 아티팩트를 그대로 사용
+          - 0.51.0-09 공식 Android 네이티브 패치 체인 적용
+          - 한국어 CJK 토픽 탐색 / UTF-8 BOM sidecar / 혼합 UTF-8 ESM 패치 적용
+          - MysticCards 폰트 fallback 유지
+          - NDK r27d 네이티브 공유 라이브러리 전체 ELF PT_LOAD 최소 16 KiB 정렬 검증
+          - 최종 APK 내부 ARM64 공유 라이브러리 재검증
+          - APK ZIP 16 KiB 정렬 검증
+          - versionCode 5109 / versionName 0.51.0-09 검증
+
+          Galaxy S25 Ultra 등 16 KiB 페이지 기기 호환성 개선을 목표로 한 테스트 빌드입니다.
+          EOF
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK" "$SHA" \
+              release-artifacts/native-page-size-report.txt \
+              release-artifacts/apk-page-size-report.txt \
+              release-artifacts/native-build-page-size-report.txt \
+              --clobber
+            gh release edit "$RELEASE_TAG" \
+              --target "$GITHUB_SHA" \
+              --title 'OpenMW Android 0.51.0-09 Korean KR1 (16 KiB test)' \
+              --prerelease \
+              --notes-file release-artifacts/release-notes.md
+          else
+            gh release create "$RELEASE_TAG" \
+              "$APK" "$SHA" \
+              release-artifacts/native-page-size-report.txt \
+              release-artifacts/apk-page-size-report.txt \
+              release-artifacts/native-build-page-size-report.txt \
+              --target "$GITHUB_SHA" \
+              --title 'OpenMW Android 0.51.0-09 Korean KR1 (16 KiB test)' \
+              --prerelease \
+              --notes-file release-artifacts/release-notes.md
+          fi
