@@ -1,2 +1,0 @@
-trigger=run7
-reason=publish final verified Run 3 Korean 16 KiB APK with complete Korean data and font installation notes
