@@ -1,2 +1,2 @@
-trigger=run3
-reason=rebuild Korean 0.51.0-09 with SDL2 NDK r27 looper compatibility, 16 KiB ELF verification, APK packaging, and prerelease publish
+trigger=run4
+reason=retry Korean 0.51.0-09 16 KiB APK packaging with optional android_omwfx assets
