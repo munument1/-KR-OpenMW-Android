@@ -12,7 +12,6 @@
 ![Korean](https://img.shields.io/badge/Korean-KR1-6f42c1)
 ![Controls](https://img.shields.io/badge/Controls-Joypad%20%2F%20Touch%20%2F%20Keyboard-blueviolet)
 
-[**KR1 다운로드 — APK + 한글패치**](https://github.com/munument1/-KR-OpenMW-Android/releases/tag/android-korean-0.51.0-04-kr1)
 
 </div>
 
