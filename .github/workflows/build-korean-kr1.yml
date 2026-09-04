@@ -1,10 +1,7 @@
-name: Build Korean Android KR1
+name: Build Korean Android KR1 (legacy blocked)
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: read
