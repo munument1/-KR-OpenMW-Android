@@ -103,7 +103,7 @@ jobs:
           compression-level: 0
           retention-days: 14
 
-      - name: Publish Korean 0.51.0-09 KR1.1 prerelease
+      - name: Publish Korean 0.51.0-09 KR1.1 release
         if: success()
         shell: bash
         run: |
@@ -113,9 +113,9 @@ jobs:
           VERIFY='release-artifacts/16k-verification.txt'
           ORIGIN='release-artifacts/korean-origin.txt'
           cat > release-artifacts/release-notes.md <<'EOF'
-          ## OpenMW Android 0.51.0-09 Korean KR1.1 — 16 KiB prerelease
+          ## OpenMW Android 0.51.0-09 Korean KR1.1 — 16 KiB
 
-          OpenMW Android 0.51.0-09 기반 한국어 ARM64 프리릴리즈입니다.
+          OpenMW Android 0.51.0-09 기반 한국어 ARM64 정식 릴리즈입니다.
 
           KR1.1은 KR1의 게임 기능 변경판이 아니라, 작업용/구형 CI를 정리한 뒤 현행 NDK r27d + 16 KiB 빌드·검증 경로에서 다시 생성한 배포 정리판입니다.
 
@@ -133,7 +133,7 @@ jobs:
           한글 번역 데이터와 OMWFont는 APK에 포함하지 않습니다. [OpenMW 0.51.0 KR1 한글패치](https://github.com/munument1/-KR-openmw/releases/tag/openmw-0.51.0-kr1)를 별도로 설치해야 합니다.
 
           ### 알려진 제한사항
-          - Android debug 인증서로 서명된 프리릴리즈입니다. 기존 설치본과 서명이 다르면 설정/데이터를 백업한 뒤 기존 앱을 제거하고 새로 설치해야 합니다.
+          - Android debug 인증서로 서명된 빌드입니다. 기존 설치본과 서명이 다르면 설정/데이터를 백업한 뒤 기존 앱을 제거하고 새로 설치해야 합니다.
           - APK/ELF 정적 16 KiB 검증은 완료했지만 실제 16 KiB 페이지 기기에서의 장시간 플레이 검증은 별도로 필요합니다.
           EOF
 
@@ -142,20 +142,23 @@ jobs:
             gh release edit "$RELEASE_TAG" \
               --target "$GITHUB_SHA" \
               --title 'OpenMW Android 0.51.0-09 Korean KR1.1 (16 KiB)' \
-              --prerelease \
               --notes-file release-artifacts/release-notes.md
+            RELEASE_ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.id')"
+            printf '{"prerelease":false,"draft":false,"make_latest":"true"}\n' \
+              | gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --input - >/dev/null
           else
             gh release create "$RELEASE_TAG" \
               "$APK" "$SHA" "$VERIFY" "$ORIGIN" \
               --target "$GITHUB_SHA" \
               --title 'OpenMW Android 0.51.0-09 Korean KR1.1 (16 KiB)' \
-              --prerelease \
+              --latest \
               --notes-file release-artifacts/release-notes.md
           fi
 
-      - name: Verify published prerelease
+      - name: Verify published release
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          gh release view "$RELEASE_TAG" --json url,tagName,name,isDraft,isPrerelease,targetCommitish
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" \
+            --jq '{url: .html_url, tagName: .tag_name, name: .name, isDraft: .draft, isPrerelease: .prerelease, targetCommitish: .target_commitish}'
