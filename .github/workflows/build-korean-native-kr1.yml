@@ -2,6 +2,11 @@ name: Build Korean Native KR1
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - update/openmw-0.51.0-09
+    paths:
+      - ci/native-build-trigger.txt
 
 permissions:
   contents: read
