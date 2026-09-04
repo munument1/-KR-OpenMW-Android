@@ -9,7 +9,7 @@ on:
       - ci/native-build-trigger.txt
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   native:
@@ -18,10 +18,17 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       JOBS: '4'
+      RELEASE_TAG: android-korean-0.51.0-09-kr1
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -33,7 +40,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build git curl wget patch unzip zip python3 perl autoconf automake libtool libtool-bin pkg-config bison flex gettext gperf nasm yasm texinfo bzip2 xz-utils
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'ndk;27.3.13750724'
+          sdkmanager 'ndk;27.3.13750724' 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
 
       - name: Restore 16K native dependency cache
         uses: actions/cache@v4
@@ -43,15 +50,24 @@ jobs:
             source/buildscripts/prefix/arm64
             source/buildscripts/build/arm64
             !source/buildscripts/build/arm64/openmw-prefix
-          key: ${{ runner.os }}-openmw051-r27d-arm64-16k-v1-${{ hashFiles('source/buildscripts/CMakeLists.txt', 'source/buildscripts/include/version.sh', 'ci/build-korean-native-kr1.sh') }}
+          key: ${{ runner.os }}-openmw051-r27d-arm64-16k-v2-${{ hashFiles('source/buildscripts/CMakeLists.txt', 'source/buildscripts/include/version.sh', 'ci/build-korean-native-kr1.sh', 'ci/patch-sdl2-ndk-r27.sh') }}
           restore-keys: |
-            ${{ runner.os }}-openmw051-r27d-arm64-16k-v1-
+            ${{ runner.os }}-openmw051-r27d-arm64-16k-v2-
 
       - name: Build Korean 0.51.0-09 native runtime
         shell: bash
         run: |
-          chmod +x ci/build-korean-native-kr1.sh
+          chmod +x ci/patch-sdl2-ndk-r27.sh ci/build-korean-native-kr1.sh
+          ./ci/patch-sdl2-ndk-r27.sh
           ./ci/build-korean-native-kr1.sh
+
+      - name: Package and verify 16K Korean APK
+        shell: bash
+        env:
+          NATIVE_INPUT: native-artifacts
+        run: |
+          chmod +x ci/package-korean-native-kr1.sh
+          ./ci/package-korean-native-kr1.sh
 
       - name: Upload native runtime and logs
         if: always()
@@ -69,3 +85,65 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 14
+
+      - name: Upload verified APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenMW-Android-0.51.0-09-Korean-KR1-16K
+          path: |
+            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk
+            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk.sha256
+            release-artifacts/native-page-size-report.txt
+            release-artifacts/apk-page-size-report.txt
+            release-artifacts/native-build-page-size-report.txt
+            release-artifacts/korean-origin.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Publish Korean 0.51.0-09 prerelease
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk'
+          SHA='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk.sha256'
+          cat > release-artifacts/release-notes.md <<'EOF'
+          ## OpenMW Android 0.51.0-09 Korean KR1 — 16 KiB test build
+
+          OpenMW Android 0.51.0-09 기반 한국어 ARM64 프리릴리즈입니다.
+
+          - 0.51.0-09 공식 Android 네이티브 패치 체인 적용
+          - 한국어 CJK 토픽 탐색 / UTF-8 BOM sidecar / 혼합 UTF-8 ESM 패치 적용
+          - MysticCards 폰트 fallback 유지
+          - NDK r27d로 네이티브 라이브러리 재빌드
+          - APK에 포함되는 ARM64 공유 라이브러리 전체 ELF PT_LOAD 최소 16 KiB 정렬 검증
+          - APK ZIP 16 KiB 정렬 검증
+          - versionCode 5109 / versionName 0.51.0-09 검증
+
+          Galaxy S25 Ultra 등 16 KiB 페이지 기기 호환성 개선을 목표로 한 테스트 빌드이며, 실제 기기 검증 전이므로 프리릴리즈로 배포합니다.
+          EOF
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK" "$SHA" \
+              release-artifacts/native-page-size-report.txt \
+              release-artifacts/apk-page-size-report.txt \
+              release-artifacts/native-build-page-size-report.txt \
+              --clobber
+            gh release edit "$RELEASE_TAG" \
+              --target "$GITHUB_SHA" \
+              --title 'OpenMW Android 0.51.0-09 Korean KR1 (16 KiB test)' \
+              --prerelease \
+              --notes-file release-artifacts/release-notes.md
+          else
+            gh release create "$RELEASE_TAG" \
+              "$APK" "$SHA" \
+              release-artifacts/native-page-size-report.txt \
+              release-artifacts/apk-page-size-report.txt \
+              release-artifacts/native-build-page-size-report.txt \
+              --target "$GITHUB_SHA" \
+              --title 'OpenMW Android 0.51.0-09 Korean KR1 (16 KiB test)' \
+              --prerelease \
+              --notes-file release-artifacts/release-notes.md
+          fi
