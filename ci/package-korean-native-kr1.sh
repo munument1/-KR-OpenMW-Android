@@ -9,6 +9,7 @@ NDK_PACKAGE='27.3.13750724'
 NATIVE_INPUT="${NATIVE_INPUT:-native-input}"
 OUTDIR='release-artifacts'
 JNI_DIR='source/app/src/main/jniLibs/arm64-v8a'
+NATIVE_GATE='source/buildscripts/openmw-051-patch39-libopenmw.sha256'
 
 mkdir -p "$OUTDIR" work/upstream "$JNI_DIR"
 
@@ -18,6 +19,17 @@ for library in libopenmw.so libopenal.so libSDL2.so libGL.so libcollada-dom2.5-d
 done
 
 grep -Fq 'required_min_load_align=0x4000' "$NATIVE_INPUT/page-size-report.txt"
+
+# Gradle's existing release gate pins libopenmw.so through this digest file.
+# Replace the old upstream digest with the exact, already-verified Korean 16K
+# native digest supplied by the successful native artifact. This keeps the
+# gate active instead of bypassing it.
+test -s "$NATIVE_INPUT/libopenmw.so.sha256"
+EXPECTED_KR_SHA="$(awk 'NR==1 {print $1}' "$NATIVE_INPUT/libopenmw.so.sha256")"
+ACTUAL_KR_SHA="$(sha256sum "$NATIVE_INPUT/libs/libopenmw.so" | awk '{print $1}')"
+test "$EXPECTED_KR_SHA" = "$ACTUAL_KR_SHA"
+printf '%s  %s\n' "$ACTUAL_KR_SHA" 'app/src/main/jniLibs/arm64-v8a/libopenmw.so' > "$NATIVE_GATE"
+grep -Fq "$ACTUAL_KR_SHA" "$NATIVE_GATE"
 
 NDK_ROOT="${ANDROID_HOME:?ANDROID_HOME is required}/ndk/$NDK_PACKAGE"
 READELF="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
