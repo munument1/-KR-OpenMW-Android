@@ -1,2 +1,2 @@
-trigger=2026-09-04T10:15+09:00
-reason=rebuild Korean libopenmw.so on official 0.51.0-09 native patch chain
+trigger=2026-09-04T12:19+09:00
+reason=rebuild Korean 0.51.0-09 native runtime with NDK r27d and 16 KiB ELF alignment
