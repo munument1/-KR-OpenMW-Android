@@ -1,2 +1,2 @@
-trigger=run4
-reason=retry Korean 0.51.0-09 16 KiB APK packaging with optional android_omwfx assets
+trigger=kr1.1
+reason=build and publish cleaned Korean 0.51.0-09 16 KiB prerelease
