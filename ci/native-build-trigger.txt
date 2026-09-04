@@ -1,2 +1,2 @@
-trigger=2026-09-04T12:19+09:00
-reason=rebuild Korean 0.51.0-09 native runtime with NDK r27d and 16 KiB ELF alignment
+trigger=run3
+reason=rebuild Korean 0.51.0-09 with SDL2 NDK r27 looper compatibility, 16 KiB ELF verification, APK packaging, and prerelease publish
