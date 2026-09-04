@@ -136,10 +136,10 @@ rm -rf "$TMPDIR"
 
 "$ZIPALIGN" -c -P 16 4 "$APK"
 
-OUT="$OUTDIR/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk"
+OUT="$OUTDIR/OpenMW-Android-0.51.0-09-Korean-KR1.1-16K.apk"
 cp "$APK" "$OUT"
 sha256sum "$OUT" | tee "$OUT.sha256"
 cp "$NATIVE_INPUT/korean-origin.txt" "$OUTDIR/korean-origin.txt"
 cp "$NATIVE_INPUT/page-size-report.txt" "$OUTDIR/native-build-page-size-report.txt"
 
-echo 'Verified Korean 0.51.0-09 APK with 16 KiB native ELF alignment.'
+echo 'Verified Korean 0.51.0-09 KR1.1 APK with 16 KiB native ELF alignment.'
