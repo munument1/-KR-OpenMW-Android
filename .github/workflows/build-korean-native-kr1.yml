@@ -1,4 +1,4 @@
-name: Build Korean Native KR1
+name: Build and Release Korean 0.51.0-09 KR1.1
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       JOBS: '4'
-      RELEASE_TAG: android-korean-0.51.0-09-kr1
+      RELEASE_TAG: android-korean-0.51.0-09-kr1.1
 
     steps:
       - name: Checkout
@@ -73,7 +73,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-0.51.0-09-Korean-native-KR1-16K
+          name: OpenMW-0.51.0-09-Korean-native-KR1.1-16K
           path: |
             native-artifacts/libopenmw.so
             native-artifacts/libopenmw.so.sha256
@@ -90,10 +90,11 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-Android-0.51.0-09-Korean-KR1-16K
+          name: OpenMW-Android-0.51.0-09-Korean-KR1.1-16K
           path: |
-            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk
-            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk.sha256
+            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1.1-16K.apk
+            release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1.1-16K.apk.sha256
+            release-artifacts/16k-verification.txt
             release-artifacts/native-page-size-report.txt
             release-artifacts/apk-page-size-report.txt
             release-artifacts/native-build-page-size-report.txt
@@ -102,52 +103,59 @@ jobs:
           compression-level: 0
           retention-days: 14
 
-      - name: Publish Korean 0.51.0-09 prerelease
+      - name: Publish Korean 0.51.0-09 KR1.1 prerelease
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          APK='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk'
-          SHA='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1-16K.apk.sha256'
+          APK='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1.1-16K.apk'
+          SHA='release-artifacts/OpenMW-Android-0.51.0-09-Korean-KR1.1-16K.apk.sha256'
+          VERIFY='release-artifacts/16k-verification.txt'
+          ORIGIN='release-artifacts/korean-origin.txt'
           cat > release-artifacts/release-notes.md <<'EOF'
-          ## OpenMW Android 0.51.0-09 Korean KR1 — 16 KiB test build
+          ## OpenMW Android 0.51.0-09 Korean KR1.1 — 16 KiB prerelease
 
           OpenMW Android 0.51.0-09 기반 한국어 ARM64 프리릴리즈입니다.
 
-          - 0.51.0-09 공식 Android 네이티브 패치 체인 적용
+          KR1.1은 KR1의 게임 기능 변경판이 아니라, 작업용/구형 CI를 정리한 뒤 현행 NDK r27d + 16 KiB 빌드·검증 경로에서 다시 생성한 배포 정리판입니다.
+
+          ### 포함 사항
+          - OpenMW Android 0.51.0-09 네이티브 패치 체인 적용
           - 한국어 CJK 토픽 탐색 / UTF-8 BOM sidecar / 혼합 UTF-8 ESM 패치 적용
           - MysticCards 폰트 fallback 유지
-          - NDK r27d로 네이티브 라이브러리 재빌드
+          - NDK r27d로 ARM64 네이티브 라이브러리 재빌드
           - APK에 포함되는 ARM64 공유 라이브러리 전체 ELF PT_LOAD 최소 16 KiB 정렬 검증
           - APK ZIP 16 KiB 정렬 검증
           - versionCode 5109 / versionName 0.51.0-09 검증
+          - 공개 검증 자료를 `16k-verification.txt` 하나로 정리
+
+          ### 설치에 필요한 한글 데이터
+          한글 번역 데이터와 OMWFont는 APK에 포함하지 않습니다. [OpenMW 0.51.0 KR1 한글패치](https://github.com/munument1/-KR-openmw/releases/tag/openmw-0.51.0-kr1)를 별도로 설치해야 합니다.
 
           ### 알려진 제한사항
-
-          - 한글 번역 데이터와 OMWFont는 APK에 포함하지 않습니다. [OpenMW 0.51.0 KR1 한글패치](https://github.com/munument1/-KR-openmw/releases/tag/openmw-0.51.0-kr1)를 별도로 설치해야 합니다.
-          - Android debug 인증서로 서명된 테스트 빌드입니다. 기존 설치본과 서명이 다르면 설정/데이터를 백업한 뒤 기존 앱을 제거하고 새로 설치해야 합니다.
+          - Android debug 인증서로 서명된 프리릴리즈입니다. 기존 설치본과 서명이 다르면 설정/데이터를 백업한 뒤 기존 앱을 제거하고 새로 설치해야 합니다.
           - APK/ELF 정적 16 KiB 검증은 완료했지만 실제 16 KiB 페이지 기기에서의 장시간 플레이 검증은 별도로 필요합니다.
           EOF
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "$APK" "$SHA" \
-              release-artifacts/native-page-size-report.txt \
-              release-artifacts/apk-page-size-report.txt \
-              release-artifacts/native-build-page-size-report.txt \
-              --clobber
+            gh release upload "$RELEASE_TAG" "$APK" "$SHA" "$VERIFY" "$ORIGIN" --clobber
             gh release edit "$RELEASE_TAG" \
               --target "$GITHUB_SHA" \
-              --title 'OpenMW Android 0.51.0-09 Korean KR1 (16 KiB test)' \
+              --title 'OpenMW Android 0.51.0-09 Korean KR1.1 (16 KiB)' \
               --prerelease \
               --notes-file release-artifacts/release-notes.md
           else
             gh release create "$RELEASE_TAG" \
-              "$APK" "$SHA" \
-              release-artifacts/native-page-size-report.txt \
-              release-artifacts/apk-page-size-report.txt \
-              release-artifacts/native-build-page-size-report.txt \
+              "$APK" "$SHA" "$VERIFY" "$ORIGIN" \
               --target "$GITHUB_SHA" \
-              --title 'OpenMW Android 0.51.0-09 Korean KR1 (16 KiB test)' \
+              --title 'OpenMW Android 0.51.0-09 Korean KR1.1 (16 KiB)' \
               --prerelease \
               --notes-file release-artifacts/release-notes.md
           fi
+
+      - name: Verify published prerelease
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --json url,tagName,name,isDraft,isPrerelease,targetCommitish
