@@ -100,6 +100,7 @@ jobs:
 
           ### 알려진 제한사항
 
+          - 한글 번역 데이터와 OMWFont는 APK에 포함하지 않습니다. [OpenMW 0.51.0 KR1 한글패치](https://github.com/munument1/-KR-openmw/releases/tag/openmw-0.51.0-kr1)를 별도로 설치해야 합니다.
           - Android debug 인증서로 서명된 테스트 빌드입니다. 기존 설치본과 서명이 다르면 설정/데이터를 백업한 뒤 기존 앱을 제거하고 새로 설치해야 합니다.
           - APK/ELF 정적 16 KiB 검증은 완료했지만 실제 16 KiB 페이지 기기에서의 장시간 플레이 검증은 별도로 필요합니다.
           EOF

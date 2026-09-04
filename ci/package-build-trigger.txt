@@ -1,2 +1,2 @@
-trigger=run6
-reason=publish final verified Run 3 Korean 16 KiB APK with explicit signing and device-test limitations
+trigger=run7
+reason=publish final verified Run 3 Korean 16 KiB APK with complete Korean data and font installation notes
