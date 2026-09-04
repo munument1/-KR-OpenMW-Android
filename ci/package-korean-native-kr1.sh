@@ -49,9 +49,15 @@ test "$(sha256sum "$BASE_APK" | awk '{print $1}')" = "$UPSTREAM_APK_SHA256"
 EXTRACTED='work/upstream/resources'
 rm -rf "$EXTRACTED" source/app/src/main/assets/libopenmw source/app/src/main/assets/android_omwfx
 mkdir -p "$EXTRACTED" source/app/src/main/assets
-unzip -q "$BASE_APK" 'assets/libopenmw/*' 'assets/android_omwfx/*' -d "$EXTRACTED"
+unzip -q "$BASE_APK" 'assets/libopenmw/*' -d "$EXTRACTED"
 cp -a "$EXTRACTED/assets/libopenmw" source/app/src/main/assets/
-cp -a "$EXTRACTED/assets/android_omwfx" source/app/src/main/assets/
+# android_omwfx is not present in every upstream APK (including 0.51.0-09).
+# Keep it when supplied, but do not fail packaging when the optional asset tree
+# is absent.
+if unzip -Z1 "$BASE_APK" | grep -q '^assets/android_omwfx/'; then
+  unzip -q "$BASE_APK" 'assets/android_omwfx/*' -d "$EXTRACTED"
+  cp -a "$EXTRACTED/assets/android_omwfx" source/app/src/main/assets/
+fi
 
 python3 - <<'PY'
 from pathlib import Path
