@@ -21,6 +21,7 @@
 package ui.activity
 
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
@@ -91,7 +92,6 @@ class GameActivity : SDLActivity() {
 
     override fun loadLibraries() {
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val graphicsLibrary = prefs!!.getString("pref_graphicsLibrary_v2", "")
         val physicsFPS = prefs!!.getString("pref_physicsFPS2", "")
         if (!physicsFPS!!.isEmpty()) {
             try {
@@ -106,15 +106,17 @@ class GameActivity : SDLActivity() {
         System.loadLibrary("c++_shared")
         System.loadLibrary("openal")
         System.loadLibrary("SDL2")
-        if (graphicsLibrary != "gles1") {
-            try {
-                Os.setenv("OPENMW_GLES_VERSION", "2", true)
-                Os.setenv("LIBGL_ES", "2", true)
-            } catch (e: ErrnoException) {
-                Log.e("OpenMW", "Failed setting environment variables.")
-                e.printStackTrace()
-            }
 
+        // OPENMW_ANDROID_051_LAUNCHER_AUDIT_V1
+        // OpenMW 0.51 final and this port's GL4ES/OMWFX compatibility shaders
+        // use the GLES2 backend. The old GLES1 launcher selector is a CaveBros
+        // legacy path and is no longer exposed.
+        try {
+            Os.setenv("OPENMW_GLES_VERSION", "2", true)
+            Os.setenv("LIBGL_ES", "2", true)
+        } catch (e: ErrnoException) {
+            Log.e("OpenMW", "Failed setting GLES2 environment variables.")
+            e.printStackTrace()
         }
 
         val textureShrinkingOption = prefs!!.getString("pref_textureShrinking_v2", "")
@@ -432,7 +434,14 @@ class GameActivity : SDLActivity() {
         mouseMode = MouseMode.get((prefs.getString("pref_mouse_mode",
             getString(R.string.pref_mouse_mode_default))!!))
 
-        val pref_hide_controls = prefs.getBoolean(Constants.HIDE_CONTROLS, false)
+        // OPENMW_ANDROID_TOUCH_CONTROLS_FIRST_START_V1
+        // The settings checkbox has no persisted value until the user changes it.
+        // Match the visible unchecked state on real touchscreen Android/AAOS devices,
+        // while ChromeOS keeps the overlay hidden for mouse/keyboard operation.
+        val hasTouchscreen = packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
+        val defaultHideControls = !hasTouchscreen || SDLActivity.isChromebook()
+        val pref_hide_controls = prefs.getBoolean(Constants.HIDE_CONTROLS, defaultHideControls)
+
         var osc: Osc? = null
         if (!pref_hide_controls) {
             val layout = layout
