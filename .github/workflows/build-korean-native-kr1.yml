@@ -69,6 +69,12 @@ jobs:
           chmod +x ci/package-korean-native-kr1.sh
           ./ci/package-korean-native-kr1.sh
 
+      - name: Package Korean data, font and video subtitles
+        shell: bash
+        run: |
+          chmod +x ci/package-korean-data.sh
+          ./ci/package-korean-data.sh
+
       - name: Upload native runtime and logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -99,6 +105,19 @@ jobs:
             release-artifacts/apk-page-size-report.txt
             release-artifacts/native-build-page-size-report.txt
             release-artifacts/korean-origin.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload Korean data package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenMW-Android-0.51.0-10-Korean-Data-KR3
+          path: |
+            release-artifacts/OpenMW-Android-0.51.0-10-Korean-Data-KR3.zip
+            release-artifacts/OpenMW-Android-0.51.0-10-Korean-Data-KR3.zip.sha256
+            release-artifacts/korean-data-verification.txt
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
