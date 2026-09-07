@@ -1,2 +1,2 @@
-trigger=0.51.0-10-kr1-test-01
-reason=sync upstream 0.51.0-10 and validate Korean runtime patches 0001-0005 with 16 KiB packaging
+trigger=0.51.0-10-kr1-test-02
+reason=validate Korean runtime patches 0001-0005 with 16 KiB APK packaging plus KR3 Korean data and 10 video SRT subtitles
