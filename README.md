@@ -55,7 +55,7 @@
 <img width="1920" height="1080" alt="openmw0" src="https://github.com/user-attachments/assets/993327f9-ee20-466c-b1bc-ef19c0cc1d00" />
 <img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/1a742936-ebb4-4199-a565-fd7ff30a30f5" />
 <img width="1920" height="1080" alt="openmw1" src="https://github.com/user-attachments/assets/ace8b873-e704-45e8-b4a5-760e4994f347" />
-<img width="1920" height="1080" alt="openmw2" src="https://github.com/user-attachments/assets/97bbf06b-265c-495c-ad78-f7464ac5b541" />
+<img width="1920" height="1080" alt="openmw2" src="https://github.com/user-attachments/assets/97bbf06b-b6d9-4fcd-8d79-bd9f36ab7db3" />
 <img width="1920" height="1080" alt="openmw4" src="https://github.com/user-attachments/assets/cb9b06d6-265c-495c-ad78-f7464ac5b541" />
 
 ## 🎨 OMWFX 셰이더
