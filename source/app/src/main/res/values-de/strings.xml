@@ -168,6 +168,7 @@
         <item>Niedrig</item>
         <item>Mittel</item>
         <item>Hoch</item>
+        <item>Sehr hoch</item>
     </string-array>
     <string-array name="gs_shadow_distance_entries">
         <item>Niedrig</item>

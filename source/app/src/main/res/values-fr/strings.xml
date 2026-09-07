@@ -168,6 +168,7 @@
         <item>Faible</item>
         <item>Moyenne</item>
         <item>Élevée</item>
+        <item>Très élevée</item>
     </string-array>
     <string-array name="gs_shadow_distance_entries">
         <item>Faible</item>

@@ -168,6 +168,7 @@
         <item>Låg</item>
         <item>Medel</item>
         <item>Hög</item>
+        <item>Mycket hög</item>
     </string-array>
     <string-array name="gs_shadow_distance_entries">
         <item>Kort</item>

@@ -8,8 +8,8 @@ apply plugin: 'kotlin-android'
  * calibrated OMWFX chain together behind one build-time verification gate.
  */
 
-def openMwVersionCode = 5109
-def openMwAndroidVersionName = '0.51.0-09'
+def openMwVersionCode = 5110
+def openMwAndroidVersionName = '0.51.0-10'
 def versionFile = new File(
         project.rootDir,
         'app/src/main/assets/libopenmw/resources/version'
@@ -34,6 +34,7 @@ def requiredOpenMwPayload = [
         file('src/main/assets/libopenmw/resources/version'),
         file('src/main/assets/libopenmw/resources/shaders/compatibility/fullscreen_tri.vert'),
         file('src/main/assets/libopenmw/resources/shaders/compatibility/shadowcasting.vert'),
+        file('src/main/assets/libopenmw/resources/shaders/compatibility/shadows_vertex.glsl'),
         file('src/main/assets/libopenmw/resources/shaders/compatibility/shadows_fragment.glsl'),
         file('src/main/assets/libopenmw/resources/shaders/compatibility/water.vert'),
         file('src/main/assets/libopenmw/resources/shaders/compatibility/water.frag'),
@@ -66,7 +67,15 @@ def requiredOpenMwPayload = [
         file('src/main/jniLibs/arm64-v8a/libc++_shared.so')
 ]
 
+// Retire assets left by earlier ZIP overlays before merging APK assets.
+// Only these two files belonged to the removed experimental water preset.
+tasks.register('removeRetiredWaterAssets', Delete) {
+    delete file('src/main/assets/android_omwfx/OWSE.omwfx'),
+            file('src/main/assets/android_omwfx/GreenWaterShader.frag')
+}
+
 tasks.register('verifyOpenMwPayload') {
+    dependsOn tasks.named('removeRetiredWaterAssets')
     group = 'verification'
     description = 'Checks the consolidated OpenMW 0.51.0 Android final release payload.'
 
@@ -137,13 +146,20 @@ tasks.register('verifyOpenMwPayload') {
             )
         }
 
-        if (openMwVersionCode != 5109 || calculateVersion() != '0.51.0-09') {
+        if (openMwVersionCode != 5110 || calculateVersion() != '0.51.0-10') {
             throw new GradleException(
-                    'OpenMW Android final release identity must be versionName 0.51.0-09 and versionCode 5109.'
+                    'OpenMW Android final release identity must be versionName 0.51.0-10 and versionCode 5110.'
             )
         }
 
         def launcherMainActivity = file('src/main/java/ui/activity/MainActivity.kt').getText('UTF-8')
+        // OPENMW_ANDROID_051_GRAZING_SHADOW_LAUNCHER_SYNC_BUILD_GATE_V2
+        if (!launcherMainActivity.contains('"shaders/compatibility/shadows_vertex.glsl"') ||
+                !launcherMainActivity.contains('OPENMW_ANDROID_051_GRAZING_SHADOW_PAIR_SYNC_V2')) {
+            throw new GradleException(
+                    'OpenMW launcher must refresh and verify both grazing-angle shadow include files.'
+            )
+        }
         if (!launcherMainActivity.contains('migrateOpenMw051SettingsPreferences()') ||
                 !launcherMainActivity.contains('private fun controllerTriggerThresholds(): Pair<Int, Int>') ||
                 !launcherMainActivity.contains('private fun applyOpenMw051LauncherSettings()') ||
@@ -476,7 +492,18 @@ tasks.register('verifyOpenMwPayload') {
         def shadowShader = file('src/main/assets/libopenmw/resources/shaders/compatibility/shadowcasting.vert').getText('UTF-8')
         def debugVert = file('src/main/assets/libopenmw/resources/shaders/compatibility/debug.vert').getText('UTF-8')
         def debugFrag = file('src/main/assets/libopenmw/resources/shaders/compatibility/debug.frag').getText('UTF-8')
+        def shadowVertexShader = file('src/main/assets/libopenmw/resources/shaders/compatibility/shadows_vertex.glsl').getText('UTF-8')
         def shadowFragmentShader = file('src/main/assets/libopenmw/resources/shaders/compatibility/shadows_fragment.glsl').getText('UTF-8')
+
+        // OPENMW_ANDROID_051_GRAZING_SHADOW_PAIR_BUILD_GATE_V2
+        if (!shadowVertexShader.contains('OPENMW_ANDROID_051_GRAZING_SHADOW_FIX_V1') ||
+                !shadowFragmentShader.contains('OPENMW_ANDROID_051_GRAZING_SHADOW_FIX_V1') ||
+                !shadowVertexShader.contains('varying vec2 shadowReceiverPlaneSlope@shadow_texture_unit_index;') ||
+                !shadowFragmentShader.contains('varying vec2 shadowReceiverPlaneSlope@shadow_texture_unit_index;')) {
+            throw new GradleException(
+                    'OpenMW Android grazing-angle shadow include pair is incomplete or mismatched.'
+            )
+        }
 
         if (fullscreenShader.contains('uniform vec2 scaling =') ||
                 shadowShader.contains('uniform bool useDiffuseMapForShadowAlpha =') ||
@@ -500,7 +527,12 @@ tasks.register('verifyOpenMwPayload') {
                 !shadowFragmentShader.contains('uniform sampler2D shadowTexture@shadow_texture_unit_index;') ||
                 !shadowFragmentShader.contains('OPENMW_ANDROID_051_GLES2_RECEIVER_DEPTH_BIAS') ||
                 !shadowFragmentShader.contains('float receiverDepth = max(shadowXYZ.z - 0.00005, 0.0);') ||
-                !shadowFragmentShader.contains('step(receiverDepth, texture2D(') ||
+                // OPENMW_ANDROID_051_GRAZING_SHADOW_FIX_V3_BUILD_GATE
+                // V1/V2 compare directly against receiverDepth. V3 reconstructs
+                // receiver depth at the actual shadow texel centre first, so
+                // anchorReceiverDepth is the correct comparison variable.
+                (!shadowFragmentShader.contains('step(receiverDepth, texture2D(') &&
+                        !shadowFragmentShader.contains('step(anchorReceiverDepth, texture2D(')) ||
                 !shadowFragmentShader.contains('pcfShadow * 0.25') ||
                 !shadowFragmentShader.contains('pcfShadow * (1.0 / 9.0)') ||
                 !shadowFragmentShader.contains('pcfShadow * (1.0 / 64.0)') ||

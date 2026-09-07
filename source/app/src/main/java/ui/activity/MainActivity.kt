@@ -112,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         MyApp.app.defaultScaling = determineScaling()
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        migrateRetiredShaderSelection()
 
         // Only a fresh app launch may auto-skip. Activity recreation while the
         // launcher is already open must never unexpectedly start the game.
@@ -947,6 +948,7 @@ class MainActivity : AppCompatActivity() {
         val coreRelativePaths = listOf(
             "shaders/compatibility/fullscreen_tri.vert",
             "shaders/compatibility/shadowcasting.vert",
+            "shaders/compatibility/shadows_vertex.glsl",
             "shaders/compatibility/shadows_fragment.glsl",
             "shaders/compatibility/debug.vert",
             "shaders/compatibility/debug.frag",
@@ -1083,6 +1085,7 @@ class MainActivity : AppCompatActivity() {
         // Remove obsolete development techniques so shaders.yaml cannot bind
         // stale values to superseded uniforms.
         val obsoleteAndroidOmwfxShaders = listOf(
+            "OWSE.omwfx", // Retired launcher-owned water technique.
             "gateh_probe.omwfx",
             "bloomlinear_android.omwfx",
             "lensflare_android.omwfx",
@@ -1230,6 +1233,9 @@ class MainActivity : AppCompatActivity() {
         val shadowCastingText = File(
             Constants.USER_FILE_STORAGE + "/resources/shaders/compatibility/shadowcasting.vert"
         ).readText()
+        val shadowVertexText = File(
+            Constants.USER_FILE_STORAGE + "/resources/shaders/compatibility/shadows_vertex.glsl"
+        ).readText()
         val shadowReceiverText = File(
             Constants.USER_FILE_STORAGE + "/resources/shaders/compatibility/shadows_fragment.glsl"
         ).readText()
@@ -1279,7 +1285,24 @@ class MainActivity : AppCompatActivity() {
             throw IOException("Runtime OpenMW 0.51 compatibility shaders still contain GL4ES-hostile uniform initializers")
         }
 
+        // OPENMW_ANDROID_051_GRAZING_SHADOW_PAIR_SYNC_V2
+        // Both shared shadow includes must come from the same APK payload. A
+        // fragment-only refresh produces valid shaders individually but an
+        // invalid program interface and can make terrain/water disappear.
+        if (!shadowVertexText.contains("OPENMW_ANDROID_051_GRAZING_SHADOW_FIX_V1") ||
+            !shadowReceiverText.contains("OPENMW_ANDROID_051_GRAZING_SHADOW_FIX_V1") ||
+            !shadowVertexText.contains("varying vec2 shadowReceiverPlaneSlope@shadow_texture_unit_index;") ||
+            !shadowReceiverText.contains("varying vec2 shadowReceiverPlaneSlope@shadow_texture_unit_index;")) {
+            throw IOException("Runtime OpenMW 0.51 grazing-angle shadow vertex/fragment pair is mismatched")
+        }
+
         val shadowQualityProfile = selectedAndroidShadowQualityProfile()
+        if (shadowQualityProfile.pcfLevel == 4 &&
+            (!shadowReceiverText.contains("OPENMW_ANDROID_051_CUBIC_PCF_16_V3") ||
+                !shadowReceiverText.contains("pcfShadow * (1.0 / 81.0)"))) {
+            throw IOException("Very High shadow quality requires the continuous cubic 4x4 PCF shader")
+        }
+
         if (!shadowReceiverText.contains("OPENMW_ANDROID_051_GLES2_MANUAL_SHADOW_COMPARE") ||
             !shadowReceiverText.contains("OPENMW_ANDROID_051_GLES2_QUALITY_PCF") ||
             !shadowReceiverText.contains("#define OPENMW_ANDROID_SHADOW_PCF_LEVEL ${shadowQualityProfile.pcfLevel}") ||
@@ -1365,7 +1388,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateSettingsSection(
         file: File,
         sectionName: String,
-        values: LinkedHashMap<String, String>
+        values: Map<String, String?>
     ) {
         file.parentFile?.mkdirs()
 
@@ -1410,6 +1433,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            if (value == null) {
+                if (existingIndex >= 0) {
+                    lines.removeAt(existingIndex)
+                    sectionEnd -= 1
+                }
+                return@forEach
+            }
             val replacement = "$key = $value"
             if (existingIndex >= 0) {
                 lines[existingIndex] = replacement
@@ -1440,6 +1470,7 @@ class MainActivity : AppCompatActivity() {
         return when (prefs.getString("gs_shadow_quality", "medium") ?: "medium") {
             "low" -> AndroidShadowQualityProfile("low", "2048", 1, 4, "1.25")
             "high" -> AndroidShadowQualityProfile("high", "4096", 3, 16, "1.75")
+            "very_high" -> AndroidShadowQualityProfile("very_high", "8192", 4, 16, "1.75")
             else -> AndroidShadowQualityProfile("medium", "4096", 2, 9, "1.50")
         }
     }
@@ -1487,7 +1518,7 @@ class MainActivity : AppCompatActivity() {
         // Android/GL4ES: keep a single shadow map for every quality tier.
         // Multi-map cascades (2+ maps) produce moving dark/flickering regions on
         // GLES2 devices. Quality scales resolution plus the launcher-specialized
-        // PCF receiver kernel instead: Low=4 taps, Medium=9 taps, High=16 taps.
+        // PCF receiver kernel instead: Low=4 taps, Medium=9 taps, High=16 taps, Very High=16 cubic-weighted taps.
         val shadowMapCount = "1"
         val shadowMapResolution = qualityProfile.shadowMapResolution
 
@@ -1933,6 +1964,31 @@ class MainActivity : AppCompatActivity() {
                 "groundcoverPointLighting=$groundcoverPointLighting"
         )
     }
+    // Upgrade old installations without exposing the retired preset in the UI.
+    // Normalize both values so an unchanged OMWFX selection preserves F2 state.
+    private fun migrateRetiredShaderSelection() {
+        val editor = prefs.edit()
+        for (key in listOf("pref_shadersDir_v2", OMWFX_APPLIED_PRESET_KEY)) {
+            if (prefs.getString(key, null) == "omwfx_plus") {
+                editor.putString(key, OMWFX_PRESET_VALUE)
+            }
+        }
+        editor.apply()
+    }
+
+    // Restore only settings for which the retired preset saved a backup.
+    // Keep the backup until the configuration write succeeds, allowing retries.
+    private fun restoreRetiredWaterSettings() {
+        val backupKey = "omwfx_plus_water_backup_v1"
+        if (!prefs.getBoolean(backupKey, false)) return
+        val waterKeys = listOf("shader", "refraction")
+        val restored = waterKeys.associateWith { prefs.getString("${backupKey}_$it", null) }
+        updateSettingsSection(File(Constants.USER_CONFIG, "settings.cfg"), "Water", restored)
+        val editor = prefs.edit().remove(backupKey)
+        waterKeys.forEach { editor.remove("${backupKey}_$it") }
+        if (!editor.commit()) throw IOException("Could not finish restoring previous water settings")
+    }
+
     /**
      * `Original`, `Modified` and `Zesterer` remain core-shader presets.
      * OMWFX is different: it uses the original core shaders plus OpenMW's
@@ -1943,6 +1999,7 @@ class MainActivity : AppCompatActivity() {
      * launcher-owned chain/transparent-postpass values remain runtime-managed.
      */
     private fun applyShaderPresetSettings() {
+        restoreRetiredWaterSettings()
         val selected = prefs.getString("pref_shadersDir_v2", "none") ?: "none"
         val previouslyApplied = prefs.getString(OMWFX_APPLIED_PRESET_KEY, null)
 
