@@ -97,9 +97,10 @@ video/<영상명>.srt를 자동으로 찾아 표시합니다.
 EOF
 
 rm -f "$OUT" "$OUT.sha256"
+OUT_ABS="$(realpath -m "$OUT")"
 (
   cd "$STAGING_DIR"
-  zip -qr "$(realpath --relative-to="$STAGING_DIR" "$OUT")" .
+  zip -qr "$OUT_ABS" .
 )
 
 test -s "$OUT"
