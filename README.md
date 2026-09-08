@@ -88,11 +88,13 @@
 
 [![Support via PayPal](https://img.shields.io/badge/Support%20via-PayPal-0070BA?logo=paypal\&logoColor=white)](https://paypal.me/andiweli)
 
-## 📜 크레딧 및 면책
+## 📜 크레딧 및 면책 고지
 
 OpenMW는 Morrowind 엔진을 독립적으로 재구현한 오픈 소스 프로젝트입니다. 이 Android/ChromeOS 프로젝트는 **OpenMW**, **CaveBros**, **Andiweli/OpenMW-Android**, **OMWFX shader** 기여자들의 작업을 기반으로 합니다.
 
-이 프로젝트는 Bethesda Softworks와 제휴하거나 공식 승인을 받은 프로젝트가 아닙니다. **The Elder Scrolls**, **Morrowind** 및 관련 상표의 권리는 각 권리자에게 있습니다.
+한국어 지원판의 번역 데이터와 런타임 수정은 해당 한국어 프로젝트의 작업을 바탕으로 하며, 원본 프로젝트의 저작권과 라이선스는 각각의 upstream 프로젝트를 따릅니다.
+
+이 프로젝트는 Bethesda Softworks와 제휴 관계가 없으며 Bethesda의 공식 승인을 받은 프로젝트가 아닙니다. **The Elder Scrolls**, **Morrowind** 및 관련 상표는 각 권리자에게 귀속됩니다.
 
 ---
 
