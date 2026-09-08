@@ -1,4 +1,0 @@
-release=android-korean-0.51.0-10-kr1
-validated_run=34141240110
-validated_apk_sha256=a699adb81b0539ed115fb575167b48d287dd87e4fd060fdc23704a4db9216c8b
-validated_data_sha256=d7dfdb515b32469d8b1e7abdad97c79ebcdfb46dc095e3d1e9a9b5eea9b544a4
