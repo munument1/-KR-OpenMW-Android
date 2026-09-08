@@ -1,2 +1,2 @@
-trigger=0.51.0-10-kr1-test-02
-reason=validate Korean runtime patches 0001-0005 with 16 KiB APK packaging plus KR3 Korean data and 10 video SRT subtitles
+trigger=0.51.0-10-kr1-release-prep
+reason=prepare Android Korean 0.51.0-10 KR1 release from validated Run 34141240110
