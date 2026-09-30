@@ -3,9 +3,9 @@ set -euo pipefail
 
 OPENMW_COMMIT='f4bec41444214a7903bebd178389ca22ca13f646'
 UPSTREAM_REPO='Andiweli/OpenMW-Android'
-UPSTREAM_TAG='0.51.0-10'
-UPSTREAM_APK='OpenMW.0.51-10.apk'
-UPSTREAM_APK_SHA256='ddac08d1482d4a0c3f8cf2403e5aa305c3c13c9a88229272338b88aeb3279bc7'
+UPSTREAM_TAG='0.51.0-11'
+UPSTREAM_APK='OpenMW.0.51-11.apk'
+UPSTREAM_APK_SHA256='c0ea41c9f862d95c10796909d3b0edef6f401d5ac92ce9dd3bf92f967f32ee07'
 KOREAN_ENGINE_REPO='munument1/-KR-openmw'
 KOREAN_ENGINE_COMMIT='d2be4ca2de417b8b832685fc5729ec5b2e7d0b55'
 KOREAN_TOPIC_BLOB='4d5e8e5d72ed944fd3286615d9d50f04f2ff97b6'
@@ -70,7 +70,7 @@ replacement = '''        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/app
 )'''
 if 'patches/kr-origin/0001-cjk-topic-discovery.patch' not in text:
     if needle not in text:
-        raise SystemExit('official 0.51.0-10 OpenMW patch-chain tail not found')
+        raise SystemExit('official 0.51.0-11 OpenMW patch-chain tail not found')
     text = text.replace(needle, replacement, 1)
 cmake.write_text(text, encoding='utf-8')
 
@@ -165,4 +165,4 @@ if [[ $ALIGN_FAIL -ne 0 ]]; then
   exit 1
 fi
 
-echo 'Korean 0.51.0-10 native runtime build completed with patches 0001-0005 and 16 KiB ELF alignment.'
+echo 'Korean 0.51.0-11 native runtime build completed with patches 0001-0005 and 16 KiB ELF alignment.'
