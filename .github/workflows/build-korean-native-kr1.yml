@@ -1,10 +1,10 @@
-name: Build Korean 0.51.0-10 KR1 test
+name: Build Korean 0.51.0-11 KR1 test
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - update/openmw-0.51.0-10
+      - update/openmw-0.51.0-11
     paths:
       - ci/native-build-trigger.txt
 
@@ -54,7 +54,7 @@ jobs:
             ${{ runner.os }}-openmw051-r27d-arm64-16k-v3-
             ${{ runner.os }}-openmw051-r27d-arm64-16k-v2-
 
-      - name: Build Korean 0.51.0-10 native runtime
+      - name: Build Korean 0.51.0-11 native runtime
         shell: bash
         run: |
           chmod +x ci/patch-sdl2-ndk-r27.sh ci/build-korean-native-kr1.sh
@@ -79,7 +79,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-0.51.0-10-Korean-native-KR1-Test-16K
+          name: OpenMW-0.51.0-11-Korean-native-KR1-Test-16K
           path: |
             native-artifacts/libopenmw.so
             native-artifacts/libopenmw.so.sha256
@@ -96,10 +96,10 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-Android-0.51.0-10-Korean-KR1-Test-16K
+          name: OpenMW-Android-0.51.0-11-Korean-KR1-Test-16K
           path: |
-            release-artifacts/OpenMW-Android-0.51.0-10-Korean-KR1-Test-16K.apk
-            release-artifacts/OpenMW-Android-0.51.0-10-Korean-KR1-Test-16K.apk.sha256
+            release-artifacts/OpenMW-Android-0.51.0-11-Korean-KR1-Test-16K.apk
+            release-artifacts/OpenMW-Android-0.51.0-11-Korean-KR1-Test-16K.apk.sha256
             release-artifacts/16k-verification.txt
             release-artifacts/native-page-size-report.txt
             release-artifacts/apk-page-size-report.txt
@@ -113,10 +113,10 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-Android-0.51.0-10-Korean-Data-KR3
+          name: OpenMW-Android-0.51.0-11-Korean-Data-KR3
           path: |
-            release-artifacts/OpenMW-Android-0.51.0-10-Korean-Data-KR3.zip
-            release-artifacts/OpenMW-Android-0.51.0-10-Korean-Data-KR3.zip.sha256
+            release-artifacts/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip
+            release-artifacts/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip.sha256
             release-artifacts/korean-data-verification.txt
           if-no-files-found: error
           compression-level: 0
