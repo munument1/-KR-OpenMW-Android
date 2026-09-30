@@ -2,9 +2,9 @@
 set -euo pipefail
 
 UPSTREAM_REPO='Andiweli/OpenMW-Android'
-UPSTREAM_TAG='0.51.0-10'
-UPSTREAM_APK='OpenMW.0.51-10.apk'
-UPSTREAM_APK_SHA256='ddac08d1482d4a0c3f8cf2403e5aa305c3c13c9a88229272338b88aeb3279bc7'
+UPSTREAM_TAG='0.51.0-11'
+UPSTREAM_APK='OpenMW.0.51-11.apk'
+UPSTREAM_APK_SHA256='c0ea41c9f862d95c10796909d3b0edef6f401d5ac92ce9dd3bf92f967f32ee07'
 NDK_PACKAGE='27.3.13750724'
 NATIVE_INPUT="${NATIVE_INPUT:-native-input}"
 OUTDIR='release-artifacts'
@@ -117,8 +117,8 @@ for library in libopenmw.so libopenal.so libSDL2.so libGL.so libcollada-dom2.5-d
 done
 
 "$AAPT" dump badging "$APK" > /tmp/badging.txt
-grep -F "versionCode='5110'" /tmp/badging.txt
-grep -F "versionName='0.51.0-10'" /tmp/badging.txt
+grep -F "versionCode='5111'" /tmp/badging.txt
+grep -F "versionName='0.51.0-11'" /tmp/badging.txt
 
 unzip -p "$APK" assets/libopenmw/openmw/openmw.base.cfg > /tmp/openmw.base.cfg
 grep -Fx 'fallback=Fonts_Font_0,MysticCards' /tmp/openmw.base.cfg
@@ -145,20 +145,20 @@ rm -rf "$TMPDIR"
 
 "$ZIPALIGN" -c -P 16 4 "$APK"
 
-OUT="$OUTDIR/OpenMW-Android-0.51.0-10-Korean-KR1-Test-16K.apk"
+OUT="$OUTDIR/OpenMW-Android-0.51.0-11-Korean-KR1-Test-16K.apk"
 cp "$APK" "$OUT"
 sha256sum "$OUT" | tee "$OUT.sha256"
 cp "$NATIVE_INPUT/korean-origin.txt" "$OUTDIR/korean-origin.txt"
 cp "$NATIVE_INPUT/page-size-report.txt" "$OUTDIR/native-build-page-size-report.txt"
 
 {
-  echo 'OpenMW Android 0.51.0-10 Korean KR1 test verification'
+  echo 'OpenMW Android 0.51.0-11 Korean KR1 test verification'
   echo 'result=PASS'
   echo 'runtime_patches=0001-0005'
   echo 'video_subtitles_engine=enabled'
   echo 'required_page_size=16384'
-  echo 'versionCode=5110'
-  echo 'versionName=0.51.0-10'
+  echo 'versionCode=5111'
+  echo 'versionName=0.51.0-11'
   echo 'movie_fallback=mw_intro.bik'
   echo 'zipalign_16k=PASS'
   echo
@@ -172,4 +172,4 @@ cp "$NATIVE_INPUT/page-size-report.txt" "$OUTDIR/native-build-page-size-report.t
   cat "$OUTDIR/apk-page-size-report.txt"
 } > "$OUTDIR/16k-verification.txt"
 
-echo 'Verified Korean 0.51.0-10 KR1 test APK with patches 0001-0005 and 16 KiB native ELF alignment.'
+echo 'Verified Korean 0.51.0-11 KR1 test APK with patches 0001-0005 and 16 KiB native ELF alignment.'
