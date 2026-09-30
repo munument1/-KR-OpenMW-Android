@@ -15,7 +15,7 @@ SOURCE_DIR="$WORK/source"
 STAGING_DIR="$WORK/staging"
 DATA_DIR="$STAGING_DIR/Morrowind_Korean_ReTranslation"
 OUTDIR='release-artifacts'
-OUT="$OUTDIR/OpenMW-Android-0.51.0-10-Korean-Data-KR3.zip"
+OUT="$OUTDIR/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip"
 
 rm -rf "$WORK"
 mkdir -p "$SOURCE_DIR" "$DATA_DIR/Fonts" "$OUTDIR"
@@ -80,7 +80,7 @@ test "$(find "$DATA_DIR/video" -maxdepth 1 -type f -name '*.srt' | wc -l)" -eq 1
 grep -Fq 'GowunBatang-Bold.ttf' "$DATA_DIR/Fonts/MysticCards.omwfont"
 
 cat > "$STAGING_DIR/README-ANDROID-KO.txt" <<'EOF'
-OpenMW Android 0.51.0-10 한국어 데이터 패키지
+OpenMW Android 0.51.0-11 한국어 데이터 패키지
 
 이 압축 파일은 한국어 번역 데이터, Gowun Batang 기반 MysticCards 폰트,
 그리고 본편 3개 + Bloodmoon 7개 영상용 한국어 SRT 자막을 포함합니다.
@@ -108,7 +108,7 @@ unzip -tq "$OUT"
 sha256sum "$OUT" | tee "$OUT.sha256"
 
 {
-  echo 'OpenMW Android 0.51.0-10 Korean data package'
+  echo 'OpenMW Android 0.51.0-11 Korean data package'
   echo 'source_repo=munument1/-KR-openmw'
   echo "source_tag=$KOREAN_TAG"
   echo "source_asset=$KOREAN_ASSET"
