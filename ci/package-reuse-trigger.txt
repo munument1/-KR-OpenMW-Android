@@ -1,2 +1,2 @@
-trigger=0.51.0-11-reuse-native-01
-reason=package 0.51.0-11 with the already 16 KiB-verified Korean native runtime because upstream 0.51.0-11 changes only Android version metadata and Osk.kt
+trigger=0.51.0-11-galmuri11-02
+reason=package KR1.1 with Galmuri11 Korean data from OpenMW KR4 while retaining the verified 16 KiB native runtime

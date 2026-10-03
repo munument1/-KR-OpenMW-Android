@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build an Android-ready Korean data directory from the exact Windows KR3
+# Build an Android-ready Korean data directory from the exact Windows KR4
 # translation payload that has already been tested with OpenMW 0.51.0.
 # Only Korean data/fonts/subtitles are reused; Windows executables and installer
 # files are never copied into the Android package.
 KOREAN_REPO='munument1/-KR-openmw'
-KOREAN_TAG='openmw-0.51.0-kr3'
-KOREAN_ASSET='Morrowind-Korean-OpenMW-0.51.0-KR3-Full.zip'
-KOREAN_ASSET_SHA256='b678745854ae6787ba9c317802639f78853f5e786b7d773d05a5d4a02b622751'
+KOREAN_TAG='openmw-0.51.0-kr4'
+KOREAN_ASSET='Morrowind-Korean-OpenMW-0.51.0-KR4-Full.zip'
+KOREAN_ASSET_SHA256='bfd960b780d441c6aa0d6b38539014174986d2fa79de8a2e4bfaed2505edcae2'
 
 WORK='work/korean-data'
 SOURCE_DIR="$WORK/source"
 STAGING_DIR="$WORK/staging"
 DATA_DIR="$STAGING_DIR/Morrowind_Korean_ReTranslation"
 OUTDIR='release-artifacts'
-OUT="$OUTDIR/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip"
+OUT="$OUTDIR/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip"
 
 rm -rf "$WORK"
 mkdir -p "$SOURCE_DIR" "$DATA_DIR/Fonts" "$OUTDIR"
@@ -33,14 +33,14 @@ test "$(sha256sum "$SOURCE_ZIP" | awk '{print $1}')" = "$KOREAN_ASSET_SHA256"
 unzip -q "$SOURCE_ZIP" \
   'payload/mods/Morrowind_Korean_ReTranslation/*' \
   'payload/resources/vfs/fonts/MysticCards.omwfont' \
-  'payload/resources/vfs/fonts/GowunBatang-Bold.ttf' \
-  'payload/resources/vfs/fonts/GowunBatang-OFL.txt' \
+  'payload/resources/vfs/fonts/Galmuri11.ttf' \
+  'payload/resources/vfs/fonts/Galmuri11-OFL-1.1.md' \
   -d "$SOURCE_DIR/extracted"
 
 cp -a "$SOURCE_DIR/extracted/payload/mods/Morrowind_Korean_ReTranslation/." "$DATA_DIR/"
 cp "$SOURCE_DIR/extracted/payload/resources/vfs/fonts/MysticCards.omwfont" "$DATA_DIR/Fonts/"
-cp "$SOURCE_DIR/extracted/payload/resources/vfs/fonts/GowunBatang-Bold.ttf" "$DATA_DIR/Fonts/"
-cp "$SOURCE_DIR/extracted/payload/resources/vfs/fonts/GowunBatang-OFL.txt" "$DATA_DIR/Fonts/"
+cp "$SOURCE_DIR/extracted/payload/resources/vfs/fonts/Galmuri11.ttf" "$DATA_DIR/Fonts/"
+cp "$SOURCE_DIR/extracted/payload/resources/vfs/fonts/Galmuri11-OFL-1.1.md" "$DATA_DIR/Fonts/"
 
 # Core Korean data must all be present.
 for required in \
@@ -49,14 +49,14 @@ for required in \
   Morrowind_Korean_ReTranslation.mrk \
   Morrowind_Korean_ReTranslation.top \
   Fonts/MysticCards.omwfont \
-  Fonts/GowunBatang-Bold.ttf; do
+  Fonts/Galmuri11.ttf; do
   test -s "$DATA_DIR/$required"
 done
 
 test -d "$DATA_DIR/l10n"
 
 # The Android runtime patch maps video/foo.bik -> video/foo.srt through VFS.
-# Keep the exact ten subtitle tracks that were validated on the Windows KR3
+# Keep the exact ten subtitle tracks that were validated on the Windows KR4
 # runtime. Original BIK files are neither modified nor redistributed.
 SUBTITLES=(
   mw_intro
@@ -77,12 +77,12 @@ done
 
 test "$(find "$DATA_DIR/video" -maxdepth 1 -type f -name '*.srt' | wc -l)" -eq 10
 
-grep -Fq 'GowunBatang-Bold.ttf' "$DATA_DIR/Fonts/MysticCards.omwfont"
+grep -Fq 'Galmuri11.ttf' "$DATA_DIR/Fonts/MysticCards.omwfont"
 
 cat > "$STAGING_DIR/README-ANDROID-KO.txt" <<'EOF'
 OpenMW Android 0.51.0-11 한국어 데이터 패키지
 
-이 압축 파일은 한국어 번역 데이터, Gowun Batang 기반 MysticCards 폰트,
+이 압축 파일은 한국어 번역 데이터, 갈무리11 기반 MysticCards 폰트,
 그리고 본편 3개 + Bloodmoon 7개 영상용 한국어 SRT 자막을 포함합니다.
 원본 Morrowind BIK 영상과 Bethesda 게임 데이터는 포함하지 않습니다.
 
@@ -114,7 +114,7 @@ sha256sum "$OUT" | tee "$OUT.sha256"
   echo "source_asset=$KOREAN_ASSET"
   echo "source_asset_sha256=$KOREAN_ASSET_SHA256"
   echo 'subtitle_count=10'
-  echo 'font=MysticCards.omwfont -> GowunBatang-Bold.ttf'
+  echo 'font=MysticCards.omwfont -> Galmuri11.ttf'
   echo 'result=PASS'
 } > "$OUTDIR/korean-data-verification.txt"
 

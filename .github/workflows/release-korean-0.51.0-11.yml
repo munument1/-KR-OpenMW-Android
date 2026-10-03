@@ -1,4 +1,4 @@
-name: Publish Korean 0.51.0-11 KR1 release
+name: Publish Korean 0.51.0-11 KR1.1 release
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
           mkdir -p "$OUT"
 
           APK_SRC="$(find dist -type f -name 'OpenMW-Android-0.51.0-11-Korean-KR1-Test-16K.apk' -print -quit)"
-          DATA_SRC="$(find dist -type f -name 'OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip' -print -quit)"
+          DATA_SRC="$(find dist -type f -name 'OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip' -print -quit)"
           VERIFY_SRC="$(find dist -type f -name '16k-verification.txt' -print -quit)"
           DATA_VERIFY_SRC="$(find dist -type f -name 'korean-data-verification.txt' -print -quit)"
           ORIGIN_SRC="$(find dist -type f -name 'korean-origin.txt' -print -quit)"
@@ -59,16 +59,16 @@ jobs:
           test -s "$DATA_VERIFY_SRC"
           test -s "$ORIGIN_SRC"
 
-          cp "$APK_SRC" "$OUT/OpenMW-Android-0.51.0-11-Korean-KR1-16K.apk"
-          cp "$DATA_SRC" "$OUT/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip"
+          cp "$APK_SRC" "$OUT/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk"
+          cp "$DATA_SRC" "$OUT/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip"
           cp "$VERIFY_SRC" "$OUT/16k-verification.txt"
           cp "$DATA_VERIFY_SRC" "$OUT/korean-data-verification.txt"
           cp "$ORIGIN_SRC" "$OUT/korean-origin.txt"
 
           (
             cd "$OUT"
-            sha256sum OpenMW-Android-0.51.0-11-Korean-KR1-16K.apk > OpenMW-Android-0.51.0-11-Korean-KR1-16K.apk.sha256
-            sha256sum OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip > OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip.sha256
+            sha256sum OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk > OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk.sha256
+            sha256sum OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip > OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip.sha256
           )
 
       - name: Publish GitHub release
@@ -78,14 +78,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG='android-korean-0.51.0-11-kr1'
+          TAG='android-korean-0.51.0-11-kr1.1'
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists; refusing to overwrite." >&2
             exit 1
           fi
 
           cat > release-notes.md <<'EOF'
-          # OpenMW Android 0.51.0-11 Korean KR1
+          # OpenMW Android 0.51.0-11 Korean KR1.1
           
           Andiweli/OpenMW-Android **0.51.0-11** 기반 한국어 지원판입니다.
           
@@ -94,23 +94,28 @@ jobs:
           - 게임패드 연결 상태의 Android 화면 키보드 입력 보정
           - 캐릭터 이름, 콘솔 명령, 주문/마법부여 텍스트 입력 호환성 개선
           
+          ## KR1.1 변경
+          - 한국어 UI 폰트를 Gowun Batang에서 **갈무리11(Galmuri11)** 로 복원
+          - MysticCards 디스크립터와 Galmuri11 TTF/OFL을 KR4 데이터 패키지로 배포
+          - APK 엔진/네이티브 런타임은 KR1과 동일한 16 KiB 검증 계열 유지
+          
           ## 한국어 지원
           - 한국어/CJK 대화 토픽 탐색 보정
           - UTF-8 BOM `.cel` / `.top` / `.mrk` 사이드카 지원
           - UTF-8 한글 ESM/ESP 문자열 처리 보정
           - 이전 한국어 세이브 저널 복구
           - 외부 UTF-8 SRT 영상 자막 지원
-          - Gowun Batang 기반 MysticCards 한국어 폰트
+          - 갈무리11(Galmuri11) 기반 MysticCards 한국어 폰트
           - 원본 Morrowind 영상 fallback 보정
           
           ## 다운로드
-          1. `OpenMW-Android-0.51.0-11-Korean-KR1-16K.apk` 설치
-          2. `OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip` 압축 해제
+          1. `OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk` 설치
+          2. `OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip` 압축 해제
           3. `Morrowind_Korean_ReTranslation` 폴더를 Android 기기에 복사
           4. 런처에서 해당 폴더를 데이터 디렉터리로 추가
           5. `Morrowind_Korean_ReTranslation.esp` 활성화
           
-          한국어 데이터 패키지는 **KR3 번역 데이터**와 본편 3개 + Bloodmoon 7개, 총 10개 SRT 자막을 포함합니다. 원본 Bethesda 게임 데이터와 BIK 영상은 포함하지 않습니다.
+          한국어 데이터 패키지는 **KR4 번역 데이터**와 본편 3개 + Bloodmoon 7개, 총 10개 SRT 자막을 포함합니다. 원본 Bethesda 게임 데이터와 BIK 영상은 포함하지 않습니다.
           
           ## 검증
           - versionName: `0.51.0-11`
@@ -121,4 +126,4 @@ jobs:
           - 한국어 데이터 패키징/SRT 10개 검증
           EOF
 
-          gh release create "$TAG"             --repo "$GITHUB_REPOSITORY"             --target "$TARGET_SHA"             --title 'OpenMW Android 0.51.0-11 Korean KR1 (16 KiB)'             --notes-file release-notes.md             release/OpenMW-Android-0.51.0-11-Korean-KR1-16K.apk             release/OpenMW-Android-0.51.0-11-Korean-KR1-16K.apk.sha256             release/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip             release/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip.sha256             release/16k-verification.txt             release/korean-data-verification.txt             release/korean-origin.txt
+          gh release create "$TAG"             --repo "$GITHUB_REPOSITORY"             --target "$TARGET_SHA"             --title 'OpenMW Android 0.51.0-11 Korean KR1.1 (16 KiB)'             --notes-file release-notes.md             release/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk             release/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk.sha256             release/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip             release/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip.sha256             release/16k-verification.txt             release/korean-data-verification.txt             release/korean-origin.txt

@@ -87,7 +87,7 @@ jobs:
           chmod +x ci/package-korean-native-kr1.sh
           ./ci/package-korean-native-kr1.sh
 
-      - name: Package KR3 Korean data
+      - name: Package KR4 Korean data
         shell: bash
         run: |
           chmod +x ci/package-korean-data.sh
@@ -112,10 +112,10 @@ jobs:
       - name: Upload Korean data package
         uses: actions/upload-artifact@v4
         with:
-          name: OpenMW-Android-0.51.0-11-Korean-Data-KR3
+          name: OpenMW-Android-0.51.0-11-Korean-Data-KR4
           path: |
-            release-artifacts/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip
-            release-artifacts/OpenMW-Android-0.51.0-11-Korean-Data-KR3.zip.sha256
+            release-artifacts/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip
+            release-artifacts/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip.sha256
             release-artifacts/korean-data-verification.txt
           if-no-files-found: error
           compression-level: 0
