@@ -8,7 +8,7 @@ set -euo pipefail
 KOREAN_REPO='munument1/-KR-openmw'
 KOREAN_TAG='openmw-0.51.0-kr4'
 KOREAN_ASSET='Morrowind-Korean-OpenMW-0.51.0-KR4-Full.zip'
-KOREAN_ASSET_SHA256='bfd960b780d441c6aa0d6b38539014174986d2fa79de8a2e4bfaed2505edcae2'
+KOREAN_ASSET_SHA256='1894a6d7e38c37bc462d250e8dc1a5242d3b77827d793a5518e4e41bbade39ca'
 
 WORK='work/korean-data'
 SOURCE_DIR="$WORK/source"

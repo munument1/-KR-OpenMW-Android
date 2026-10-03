@@ -71,7 +71,7 @@ jobs:
             sha256sum OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip > OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip.sha256
           )
 
-      - name: Publish GitHub release
+      - name: Publish or replace GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ steps.meta.outputs.head_sha }}
@@ -79,26 +79,23 @@ jobs:
         run: |
           set -euo pipefail
           TAG='android-korean-0.51.0-11-kr1.1'
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; refusing to overwrite." >&2
-            exit 1
-          fi
 
           cat > release-notes.md <<'EOF'
           # OpenMW Android 0.51.0-11 Korean KR1.1
-          
+
           Andiweli/OpenMW-Android **0.51.0-11** 기반 한국어 지원판입니다.
-          
+
+          ## KR1.1 변경
+          - 한국어 UI 폰트를 Gowun Batang에서 **갈무리11(Galmuri11)** 로 복원
+          - `MysticCards` 디스크립터와 Galmuri11 TTF/OFL을 KR4 한국어 데이터 패키지로 배포
+          - APK 엔진/네이티브 런타임은 KR1과 동일한 16 KiB 검증 계열 유지
+          - PC KR4 교정본의 고정 SHA를 기준으로 Android 데이터 패키지를 재검증
+
           ## 0.51.0-11 반영
           - upstream Controller Hotfix 반영
           - 게임패드 연결 상태의 Android 화면 키보드 입력 보정
           - 캐릭터 이름, 콘솔 명령, 주문/마법부여 텍스트 입력 호환성 개선
-          
-          ## KR1.1 변경
-          - 한국어 UI 폰트를 Gowun Batang에서 **갈무리11(Galmuri11)** 로 복원
-          - MysticCards 디스크립터와 Galmuri11 TTF/OFL을 KR4 데이터 패키지로 배포
-          - APK 엔진/네이티브 런타임은 KR1과 동일한 16 KiB 검증 계열 유지
-          
+
           ## 한국어 지원
           - 한국어/CJK 대화 토픽 탐색 보정
           - UTF-8 BOM `.cel` / `.top` / `.mrk` 사이드카 지원
@@ -107,16 +104,16 @@ jobs:
           - 외부 UTF-8 SRT 영상 자막 지원
           - 갈무리11(Galmuri11) 기반 MysticCards 한국어 폰트
           - 원본 Morrowind 영상 fallback 보정
-          
+
           ## 다운로드
           1. `OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk` 설치
           2. `OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip` 압축 해제
           3. `Morrowind_Korean_ReTranslation` 폴더를 Android 기기에 복사
           4. 런처에서 해당 폴더를 데이터 디렉터리로 추가
           5. `Morrowind_Korean_ReTranslation.esp` 활성화
-          
-          한국어 데이터 패키지는 **KR4 번역 데이터**와 본편 3개 + Bloodmoon 7개, 총 10개 SRT 자막을 포함합니다. 원본 Bethesda 게임 데이터와 BIK 영상은 포함하지 않습니다.
-          
+
+          KR4 Android 데이터 패키지는 KR3의 번역 내용과 영상 자막을 그대로 계승하고, 한국어 폰트만 갈무리11 기준으로 복원했습니다.
+
           ## 검증
           - versionName: `0.51.0-11`
           - versionCode: `5111`
@@ -125,5 +122,21 @@ jobs:
           - 한국어 런타임 패치: **0001~0005**
           - 한국어 데이터 패키징/SRT 10개 검증
           EOF
+          sed -i 's/^          //' release-notes.md
 
-          gh release create "$TAG"             --repo "$GITHUB_REPOSITORY"             --target "$TARGET_SHA"             --title 'OpenMW Android 0.51.0-11 Korean KR1.1 (16 KiB)'             --notes-file release-notes.md             release/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk             release/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk.sha256             release/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip             release/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip.sha256             release/16k-verification.txt             release/korean-data-verification.txt             release/korean-origin.txt
+          assets=(
+            release/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk
+            release/OpenMW-Android-0.51.0-11-Korean-KR1.1-16K.apk.sha256
+            release/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip
+            release/OpenMW-Android-0.51.0-11-Korean-Data-KR4.zip.sha256
+            release/16k-verification.txt
+            release/korean-data-verification.txt
+            release/korean-origin.txt
+          )
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --target "$TARGET_SHA" --title 'OpenMW Android 0.51.0-11 Korean KR1.1 (16 KiB)' --notes-file release-notes.md
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$TARGET_SHA" --title 'OpenMW Android 0.51.0-11 Korean KR1.1 (16 KiB)' --notes-file release-notes.md "${assets[@]}"
+          fi
