@@ -1,2 +1,0 @@
-trigger=0.51.0-11-galmuri11-03
-reason=rebuild KR1.1 data package against corrected OpenMW KR4 asset sha256 1894a6d7e38c37bc462d250e8dc1a5242d3b77827d793a5518e4e41bbade39ca
