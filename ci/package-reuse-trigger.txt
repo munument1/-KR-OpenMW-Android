@@ -1,2 +1,0 @@
-trigger=0.51.0-11-galmuri11-02
-reason=package KR1.1 with Galmuri11 Korean data from OpenMW KR4 while retaining the verified 16 KiB native runtime
