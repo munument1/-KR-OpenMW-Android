@@ -154,7 +154,7 @@ cp "$NATIVE_INPUT/page-size-report.txt" "$OUTDIR/native-build-page-size-report.t
 {
   echo 'OpenMW Android 0.51.0-11 Korean KR1 test verification'
   echo 'result=PASS'
-  echo 'runtime_patches=0001-0005'
+  echo 'runtime_patches=0001-0006'
   echo 'video_subtitles_engine=enabled'
   echo 'required_page_size=16384'
   echo 'versionCode=5111'
@@ -172,4 +172,4 @@ cp "$NATIVE_INPUT/page-size-report.txt" "$OUTDIR/native-build-page-size-report.t
   cat "$OUTDIR/apk-page-size-report.txt"
 } > "$OUTDIR/16k-verification.txt"
 
-echo 'Verified Korean 0.51.0-11 KR1 test APK with patches 0001-0005 and 16 KiB native ELF alignment.'
+echo 'Verified Korean 0.51.0-11 KR1 test APK with patches 0001-0006 and 16 KiB native ELF alignment.'
