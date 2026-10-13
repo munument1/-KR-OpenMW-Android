@@ -87,10 +87,10 @@ jobs:
           [[ "$NATIVE_RUN_ID" =~ ^[0-9]+$ ]]
           gh run download "$NATIVE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
             --name OpenMW-0.51.0-11-Korean-native-KR1-Test-16K --dir native-artifacts
-          grep -Fq 'munument1/-KR-openmw@6d7a582ea7dc8b8b19a5b70c8daa838aca491df1' native-artifacts/korean-origin.txt
+          grep -Fq 'munument1/-KR-openmw@4907c7d63c3d93f92439c0656a92dae7fc618ec6' native-artifacts/korean-origin.txt
           grep -Fq 'journal_keywords=30c11ee6c71149f6173b1c25f4ff46aca101774a' native-artifacts/korean-origin.txt
-          grep -Fq 'journal=6a5bd36009c6de5179315626313ce7c383865bf2' native-artifacts/korean-origin.txt
-          grep -Fq 'journal_index=9a66785d1da67216867bc4f61d8271bc601fc280' native-artifacts/korean-origin.txt
+          grep -Fq 'journal=ea8eb469f5423a0f74ace780e55e7693dc1527a9' native-artifacts/korean-origin.txt
+          grep -Fq 'journal_index=6adffda1f38472d730e845e87427a23935b15aa6' native-artifacts/korean-origin.txt
 
       - name: Package and verify 16K Korean APK
         shell: bash
