@@ -1,4 +1,4 @@
-name: Build Korean 0.51.0-11 KR1 test
+name: Build Korean 0.51.0-11 KR1.2 journal candidate
 
 on:
   workflow_dispatch:
@@ -76,7 +76,9 @@ jobs:
           chmod +x ci/package-korean-native-kr1.sh
           ./ci/package-korean-native-kr1.sh
 
+      # KR5 data is prepared and verified separately; this job validates the runtime.
       - name: Package Korean data, font and video subtitles
+        if: false
         shell: bash
         run: |
           chmod +x ci/package-korean-data.sh
