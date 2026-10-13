@@ -7,13 +7,14 @@ UPSTREAM_TAG='0.51.0-11'
 UPSTREAM_APK='OpenMW.0.51-11.apk'
 UPSTREAM_APK_SHA256='c0ea41c9f862d95c10796909d3b0edef6f401d5ac92ce9dd3bf92f967f32ee07'
 KOREAN_ENGINE_REPO='munument1/-KR-openmw'
-KOREAN_ENGINE_COMMIT='ac6638a6912214e7179bf3af0964b86f8a0f77bf'
+KOREAN_ENGINE_COMMIT='6d7a582ea7dc8b8b19a5b70c8daa838aca491df1'
 KOREAN_TOPIC_BLOB='4d5e8e5d72ed944fd3286615d9d50f04f2ff97b6'
 KOREAN_SIDECAR_BLOB='b83eaf76d1047757214711fbd0074a03876bf6de'
 KOREAN_ESM_BLOB='aa5c3e5dd74cab31aa1c17aad01a232bf057e727'
-KOREAN_JOURNAL_BLOB='ed8c444de78f9066db9d682986262892ae788302'
+KOREAN_JOURNAL_BLOB='6a5bd36009c6de5179315626313ce7c383865bf2'
 KOREAN_VIDEO_BLOB='7b26525f3df8d6b692fd9361daa42b57d286b33d'
 KOREAN_JOURNAL_KEYWORDS_BLOB='30c11ee6c71149f6173b1c25f4ff46aca101774a'
+KOREAN_JOURNAL_INDEX_BLOB='9a66785d1da67216867bc4f61d8271bc601fc280'
 NDK_PACKAGE='27.3.13750724'
 JOBS="${JOBS:-4}"
 PAGE_LDFLAGS='-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384'
@@ -40,6 +41,7 @@ fetch_patch 'korean/patches/0003-mixed-utf8-esm-reader.patch' "$DEST/0003-mixed-
 fetch_patch 'korean/patches/0004-legacy-korean-journal-recovery.patch' "$DEST/0004-legacy-korean-journal-recovery.patch" "$KOREAN_JOURNAL_BLOB"
 fetch_patch 'korean/patches/0005-video-subtitles.patch' "$DEST/0005-video-subtitles.patch" "$KOREAN_VIDEO_BLOB"
 fetch_patch 'korean/patches/0006-journal-topic-keywords.patch' "$DEST/0006-journal-topic-keywords.patch" "$KOREAN_JOURNAL_KEYWORDS_BLOB"
+fetch_patch 'korean/patches/0007-korean-journal-index.patch' "$DEST/0007-korean-journal-index.patch" "$KOREAN_JOURNAL_INDEX_BLOB"
 
 printf '%s\n' \
   "$KOREAN_ENGINE_REPO@$KOREAN_ENGINE_COMMIT" \
@@ -49,6 +51,7 @@ printf '%s\n' \
   "journal=$KOREAN_JOURNAL_BLOB" \
   "video=$KOREAN_VIDEO_BLOB" \
   "journal_keywords=$KOREAN_JOURNAL_KEYWORDS_BLOB" \
+  "journal_index=$KOREAN_JOURNAL_INDEX_BLOB" \
   "ndk=$NDK_PACKAGE" \
   "page_ldflags=$PAGE_LDFLAGS" > "$OUTDIR/korean-origin.txt"
 
@@ -70,7 +73,8 @@ replacement = '''        python3 ${CMAKE_SOURCE_DIR}/patches/openmw051-final/app
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/kr-origin/0003-mixed-utf8-esm-reader.patch &&
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/kr-origin/0004-legacy-korean-journal-recovery.patch &&
         patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/kr-origin/0005-video-subtitles.patch &&
-        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/kr-origin/0006-journal-topic-keywords.patch
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/kr-origin/0006-journal-topic-keywords.patch &&
+        patch -d <SOURCE_DIR> -p1 -t -N < ${CMAKE_SOURCE_DIR}/patches/kr-origin/0007-korean-journal-index.patch
 )'''
 if 'patches/kr-origin/0001-cjk-topic-discovery.patch' not in text:
     if needle not in text:
@@ -93,6 +97,7 @@ grep -Fq "set(OPENMW_VERSION $OPENMW_COMMIT)" source/buildscripts/CMakeLists.txt
 grep -Fq 'apply-android-graphics-followup4.py' source/buildscripts/CMakeLists.txt
 grep -Fq 'patches/kr-origin/0005-video-subtitles.patch' source/buildscripts/CMakeLists.txt
 grep -Fq 'patches/kr-origin/0006-journal-topic-keywords.patch' source/buildscripts/CMakeLists.txt
+grep -Fq 'patches/kr-origin/0007-korean-journal-index.patch' source/buildscripts/CMakeLists.txt
 grep -Fq -- '-Wl,-z,max-page-size=16384' source/buildscripts/build.sh
 grep -Fq -- '-Wl,-z,common-page-size=16384' source/buildscripts/build.sh
 
@@ -130,6 +135,8 @@ if [[ -s "$JNI" ]]; then
   grep -Fq 'utf8BomMode ? std::string_view(line)' "$SRC/components/translation/translation.cpp"
   grep -Fq 'if (isValidUtf8WithHangul(raw))' "$SRC/components/esm3/esmreader.cpp"
   grep -Fq 'recoverLegacyKoreanJournalText' "$SRC/apps/openmw/mwdialogue/journalentry.cpp"
+  grep -Fq 'decodeLegacyKoreanName(actorName)' "$SRC/apps/openmw/mwdialogue/journalentry.cpp"
+  grep -Fq 'MWGui::koreanJournalInitials' "$SRC/apps/openmw/mwgui/journalwindow.cpp"
   grep -Fq 'loadSubtitles(video);' "$SRC/apps/openmw/mwgui/videowidget.cpp"
 fi
 
@@ -170,4 +177,4 @@ if [[ $ALIGN_FAIL -ne 0 ]]; then
   exit 1
 fi
 
-echo 'Korean 0.51.0-11 native runtime build completed with patches 0001-0005 and 16 KiB ELF alignment.'
+echo 'Korean 0.51.0-11 native runtime build completed with patches 0001-0007 and 16 KiB ELF alignment.'
