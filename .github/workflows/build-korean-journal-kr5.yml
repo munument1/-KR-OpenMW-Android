@@ -2,6 +2,12 @@ name: Build Korean 0.51.0-11 KR1.2 journal candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      native_run_id:
+        description: Optional run containing a verified patch-0006 native artifact
+        required: false
+        default: ''
+        type: string
   push:
     branches:
       - update/openmw-0.51.0-11
@@ -10,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   native:
@@ -49,6 +56,7 @@ jobs:
           sdkmanager 'ndk;27.3.13750724' 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
 
       - name: Restore 16K native dependency cache
+        if: ${{ inputs.native_run_id == '' }}
         uses: actions/cache@v4
         with:
           path: |
@@ -62,11 +70,25 @@ jobs:
             ${{ runner.os }}-openmw051-r27d-arm64-16k-v2-
 
       - name: Build Korean 0.51.0-11 native runtime
+        if: ${{ inputs.native_run_id == '' }}
         shell: bash
         run: |
           chmod +x ci/patch-sdl2-ndk-r27.sh ci/build-korean-native-kr1.sh
           ./ci/patch-sdl2-ndk-r27.sh
           ./ci/build-korean-native-kr1.sh
+
+      - name: Reuse verified journal native artifact
+        if: ${{ inputs.native_run_id != '' }}
+        shell: bash
+        env:
+          NATIVE_RUN_ID: ${{ inputs.native_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$NATIVE_RUN_ID" =~ ^[0-9]+$ ]]
+          gh run download "$NATIVE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name OpenMW-0.51.0-11-Korean-native-KR1-Test-16K --dir native-artifacts
+          grep -Fq 'munument1/-KR-openmw@ac6638a6912214e7179bf3af0964b86f8a0f77bf' native-artifacts/korean-origin.txt
+          grep -Fq 'journal_keywords=30c11ee6c71149f6173b1c25f4ff46aca101774a' native-artifacts/korean-origin.txt
 
       - name: Package and verify 16K Korean APK
         shell: bash
@@ -119,7 +141,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Korean data package
-        if: success()
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: OpenMW-Android-0.51.0-11-Korean-Data-KR3
